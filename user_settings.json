@@ -1,0 +1,8 @@
+{
+    "theme": "dark",
+    "auto_refresh": true,
+    "chart_animation": false,
+    "export_format": "pdf",
+    "data_cache_enabled": false,
+    "max_chart_history": 5
+}

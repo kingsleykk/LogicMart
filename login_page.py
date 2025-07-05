@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
+from database_config import user_manager
 
 print(os.getcwd())
 class LoginPage(tk.Frame):
@@ -11,8 +12,7 @@ class LoginPage(tk.Frame):
         self.entry_password = None
         self.show_var = None
         self.controller = controller
-        self.user_data = {}
-        self.load_data_from_file()
+        self.current_user = None
 
         self.theme_bg = "#f0f0f0"
         self.accent = "#4a90e2"
@@ -21,27 +21,26 @@ class LoginPage(tk.Frame):
 
         self.create_widget()
 
-    def load_data_from_file(self):
-        try:
-            with open("user_credentials.txt", 'r') as file:
-                for line in file:
-                    line = line.strip()
-                    if line:
-                        username, password, role = line.split(",")
-                        self.user_data[username] = {
-                            "password": password,
-                            "role": role
-                        }
-        except FileNotFoundError:
-            print("file not found!")
-
     def login(self):
         username = self.entry_username.get()
         password = self.entry_password.get()
 
-        if username in self.user_data and self.user_data[username]["password"] == password:
-            role = self.user_data[username]["role"]
+        if not username or not password:
+            messagebox.showerror("Login Failed", "Please enter both username and password")
+            return
+
+        # Authenticate using PostgreSQL
+        user_info = user_manager.authenticate_user(username, password)
+        
+        if user_info:
+            self.current_user = user_info
             messagebox.showinfo("Login Successful", f"Welcome, {username}!")
+            
+            # Store user info in the main controller
+            self.controller.set_current_user(user_info)
+            
+            # Navigate directly to appropriate dashboard based on role
+            role = user_info['role']
             if role == "manager":
                 self.controller.show_frame("ManagerPage")
             elif role == "sales_manager":
@@ -50,6 +49,18 @@ class LoginPage(tk.Frame):
                 self.controller.show_frame("RestockerPage")
         else:
             messagebox.showerror("Login Failed", "Invalid username or password")
+
+    def logout(self):
+        """Handle user logout"""
+        self.current_user = None
+        self.controller.set_current_user(None)  # Clear user from controller
+        self.entry_username.delete(0, tk.END)
+        self.entry_password.delete(0, tk.END)
+        messagebox.showinfo("Logout", "You have been logged out successfully")
+
+    def get_current_user(self):
+        """Get current logged in user info"""
+        return self.current_user
 
     def show_password(self):
         if self.show_var.get():
