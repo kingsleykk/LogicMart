@@ -146,8 +146,7 @@ The LogicMart analytics dashboard enhancement project has been successfully comp
 The workspace has been cleaned of all temporary, test, and setup files. Only essential production files remain:
 
 ### Core Application Files:
-- `run_app.py` - Main application entry point
-- `main.py` - Core application logic
+- `main.py` - Main application entry point and core logic
 - `login_page.py` - Authentication interface
 - `manager_page.py` - Manager dashboard
 - `sales_manager_page.py` - Sales manager dashboard  
@@ -157,7 +156,6 @@ The workspace has been cleaned of all temporary, test, and setup files. Only ess
 - `analytics_engine.py` - Analytics calculation engine
 - `database_config.py` - Database connection management
 - `database_schema.py` - Database schema definitions
-- `auth_manager.py` - Authentication management
 - `report_generator.py` - Report generation utilities
 
 ### Configuration & Assets:
@@ -176,4 +174,4 @@ The workspace has been cleaned of all temporary, test, and setup files. Only ess
 - Build directories (`build/`, `dist/`, `__pycache__/`)
 - Old documentation (`CLEANUP_SUMMARY.md`, `COMPARISON_CHARTS_IMPROVEMENT.md`)
 
-**Final File Count: 18 essential files** (down from 35+ files including temporary scripts)
+**Final File Count: 15 essential files** (down from 35+ files including temporary scripts)
