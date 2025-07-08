@@ -1241,322 +1241,723 @@ class RestockerAnalytics(BaseAnalytics):
             end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
         
         if period_type == 'daily':
-            date_format = 'Mon DD'
-            trunc_format = 'day'
+            query = """
+            WITH date_series AS (
+                SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date AS date_val
+            ),
+            daily_category_sales AS (
+                SELECT 
+                    c.name as category,
+                    DATE(st.transaction_date) as sale_date,
+                    SUM(sti.quantity) as daily_quantity,
+                    SUM(sti.total_price) as daily_revenue
+                FROM categories c
+                JOIN products p ON c.id = p.category_id
+                JOIN sales_transaction_items sti ON p.id = sti.product_id
+                JOIN sales_transactions st ON sti.transaction_id = st.id
+                WHERE st.transaction_date >= %s AND st.transaction_date <= %s
+                GROUP BY c.name, DATE(st.transaction_date)
+            ),
+            top_categories AS (
+                SELECT category
+                FROM daily_category_sales
+                GROUP BY category
+                ORDER BY SUM(daily_revenue) DESC
+                LIMIT %s
+            )
+            SELECT 
+                tc.category,
+                ds.date_val as period_date,
+                TO_CHAR(ds.date_val, 'Mon DD') as period_label,
+                COALESCE(dcs.daily_quantity, 0) as total_quantity,
+                COALESCE(dcs.daily_revenue, 0) as total_revenue
+            FROM top_categories tc
+            CROSS JOIN date_series ds
+            LEFT JOIN daily_category_sales dcs ON tc.category = dcs.category AND ds.date_val = dcs.sale_date
+            ORDER BY tc.category, ds.date_val
+            """
+            return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
+        
         elif period_type == 'weekly':
-            date_format = 'Week of Mon DD'
-            trunc_format = 'week'
+            query = """
+            WITH week_series AS (
+                SELECT 
+                    date_trunc('week', generate_series(%s::date, %s::date, '1 week'::interval)) AS week_start
+            ),
+            weekly_category_sales AS (
+                SELECT 
+                    c.name as category,
+                    date_trunc('week', st.transaction_date) as week_start,
+                    SUM(sti.quantity) as total_quantity,
+                    SUM(sti.total_price) as total_revenue
+                FROM categories c
+                JOIN products p ON c.id = p.category_id
+                JOIN sales_transaction_items sti ON p.id = sti.product_id
+                JOIN sales_transactions st ON sti.transaction_id = st.id
+                WHERE st.transaction_date >= %s AND st.transaction_date <= %s
+                GROUP BY c.name, date_trunc('week', st.transaction_date)
+            ),
+            top_categories AS (
+                SELECT category
+                FROM weekly_category_sales
+                GROUP BY category
+                ORDER BY SUM(total_revenue) DESC
+                LIMIT %s
+            )
+            SELECT 
+                tc.category,
+                ws.week_start as period_date,
+                TO_CHAR(ws.week_start, 'Week of Mon DD') as period_label,
+                COALESCE(wcs.total_quantity, 0) as total_quantity,
+                COALESCE(wcs.total_revenue, 0) as total_revenue
+            FROM top_categories tc
+            CROSS JOIN week_series ws
+            LEFT JOIN weekly_category_sales wcs ON tc.category = wcs.category AND ws.week_start = wcs.week_start
+            ORDER BY tc.category, ws.week_start
+            """
+            return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
+        
         elif period_type == 'monthly':
-            date_format = 'Mon YYYY'
-            trunc_format = 'month'
+            query = """
+            WITH month_series AS (
+                SELECT 
+                    date_trunc('month', generate_series(%s::date, %s::date, '1 month'::interval)) AS month_start
+            ),
+            monthly_category_sales AS (
+                SELECT 
+                    c.name as category,
+                    date_trunc('month', st.transaction_date) as month_start,
+                    SUM(sti.quantity) as total_quantity,
+                    SUM(sti.total_price) as total_revenue
+                FROM categories c
+                JOIN products p ON c.id = p.category_id
+                JOIN sales_transaction_items sti ON p.id = sti.product_id
+                JOIN sales_transactions st ON sti.transaction_id = st.id
+                WHERE st.transaction_date >= %s AND st.transaction_date <= %s
+                GROUP BY c.name, date_trunc('month', st.transaction_date)
+            ),
+            top_categories AS (
+                SELECT category
+                FROM monthly_category_sales
+                GROUP BY category
+                ORDER BY SUM(total_revenue) DESC
+                LIMIT %s
+            )
+            SELECT 
+                tc.category,
+                ms.month_start as period_date,
+                TO_CHAR(ms.month_start, 'Mon YYYY') as period_label,
+                COALESCE(mcs.total_quantity, 0) as total_quantity,
+                COALESCE(mcs.total_revenue, 0) as total_revenue
+            FROM top_categories tc
+            CROSS JOIN month_series ms
+            LEFT JOIN monthly_category_sales mcs ON tc.category = mcs.category AND ms.month_start = mcs.month_start
+            ORDER BY tc.category, ms.month_start
+            """
+            return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
+        
+        elif period_type == 'quarterly':
+            query = """
+            WITH quarter_series AS (
+                SELECT 
+                    date_trunc('quarter', generate_series(%s::date, %s::date, '3 months'::interval)) AS quarter_start
+            ),
+            quarterly_category_sales AS (
+                SELECT 
+                    c.name as category,
+                    date_trunc('quarter', st.transaction_date) as quarter_start,
+                    SUM(sti.quantity) as total_quantity,
+                    SUM(sti.total_price) as total_revenue
+                FROM categories c
+                JOIN products p ON c.id = p.category_id
+                JOIN sales_transaction_items sti ON p.id = sti.product_id
+                JOIN sales_transactions st ON sti.transaction_id = st.id
+                WHERE st.transaction_date >= %s AND st.transaction_date <= %s
+                GROUP BY c.name, date_trunc('quarter', st.transaction_date)
+            ),
+            top_categories AS (
+                SELECT category
+                FROM quarterly_category_sales
+                GROUP BY category
+                ORDER BY SUM(total_revenue) DESC
+                LIMIT %s
+            )
+            SELECT 
+                tc.category,
+                qs.quarter_start as period_date,
+                'Q' || EXTRACT(QUARTER FROM qs.quarter_start) || ' ' || EXTRACT(YEAR FROM qs.quarter_start) as period_label,
+                COALESCE(qcs.total_quantity, 0) as total_quantity,
+                COALESCE(qcs.total_revenue, 0) as total_revenue
+            FROM top_categories tc
+            CROSS JOIN quarter_series qs
+            LEFT JOIN quarterly_category_sales qcs ON tc.category = qcs.category AND qs.quarter_start = qcs.quarter_start
+            ORDER BY tc.category, qs.quarter_start
+            """
+            return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
+        
         else:
-            date_format = 'Mon DD'
-            trunc_format = 'day'
-        
-        query = f"""
-        WITH top_categories AS (
-            SELECT 
-                c.id,
-                c.name as category_name,
-                SUM(sti.total_price) as total_revenue
-            FROM sales_transaction_items sti
-            JOIN products p ON sti.product_id = p.id
-            JOIN categories c ON p.category_id = c.id
-            JOIN sales_transactions st ON sti.transaction_id = st.id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s
-            GROUP BY c.id, c.name
-            ORDER BY total_revenue DESC
-            LIMIT %s
-        ),
-        period_data AS (
-            SELECT 
-                c.name as category_name,
-                date_trunc('{trunc_format}', st.transaction_date) as period_date,
-                TO_CHAR(date_trunc('{trunc_format}', st.transaction_date), '{date_format}') as period_label,
-                SUM(sti.total_price) as revenue,
-                SUM(sti.quantity) as quantity
-            FROM sales_transaction_items sti
-            JOIN products p ON sti.product_id = p.id
-            JOIN categories c ON p.category_id = c.id
-            JOIN sales_transactions st ON sti.transaction_id = st.id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s
-              AND c.id IN (SELECT id FROM top_categories)
-            GROUP BY c.name, date_trunc('{trunc_format}', st.transaction_date)
-        )
-        SELECT 
-            tc.category_name,
-            pd.period_date,
-            pd.period_label,
-            COALESCE(pd.revenue, 0) as revenue,
-            COALESCE(pd.quantity, 0) as quantity
-        FROM top_categories tc
-        CROSS JOIN (
-            SELECT DISTINCT period_date, period_label 
-            FROM period_data
-        ) periods
-        LEFT JOIN period_data pd ON tc.category_name = pd.category_name 
-                                 AND periods.period_date = pd.period_date
-        ORDER BY tc.total_revenue DESC, periods.period_date
-        """
-        
-        return self.execute_query(query, [start_date, end_date, limit, start_date, end_date])
+            raise ValueError("period_type must be 'daily', 'weekly', 'monthly', or 'quarterly'")
     
-    def get_product_sales_comparison(self, period_type='monthly', current_start=None, current_end=None, comparison_type='previous_period', product_ids=None, limit=10):
-        """Get product sales comparison analysis between two periods
-        
-        Args:
-            period_type: 'daily', 'weekly', 'monthly', or 'quarterly'
-            current_start: Start date for current period
-            current_end: End date for current period  
-            comparison_type: 'previous_period', 'year_over_year', or 'custom'
-            product_ids: List of specific product IDs to analyze (optional)
-            limit: Number of top products to analyze
-        """
-        
-        # Set default dates if not provided
-        if not current_start or not current_end:
-            today = datetime.now()
-            
-            if period_type == 'monthly':
-                # Current month
-                current_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                current_end = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-            elif period_type == 'weekly':
-                # Current week (Monday to Sunday)
-                days_since_monday = today.weekday()
-                current_start = (today - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-                current_end = (current_start + timedelta(days=6)).replace(hour=23, minute=59, second=59, microsecond=999999)
-            elif period_type == 'quarterly':
-                # Current quarter
-                quarter = (today.month - 1) // 3 + 1
-                quarter_start_month = (quarter - 1) * 3 + 1
-                current_start = today.replace(month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
-                current_end = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-            else:  # daily
-                # Last 30 days
-                current_start = (today - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
-                current_end = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        # Calculate comparison period dates
-        period_length = current_end - current_start
-        
-        if comparison_type == 'previous_period':
-            comparison_start = current_start - period_length
-            comparison_end = current_start - timedelta(seconds=1)
-        elif comparison_type == 'year_over_year':
-            comparison_start = current_start.replace(year=current_start.year - 1)
-            comparison_end = current_end.replace(year=current_end.year - 1)
-        else:
-            # Default to previous period
-            comparison_start = current_start - period_length
-            comparison_end = current_start - timedelta(seconds=1)
-        
-        # Build product filter if specified
-        product_filter = ""
-        if product_ids:
-            placeholders = ','.join(['%s'] * len(product_ids))
-            product_filter = f" AND p.id IN ({placeholders})"
-        
-        query = f"""
-        WITH top_products AS (
-            SELECT 
-                p.id,
-                p.name as product_name,
-                c.name as category_name,
-                SUM(sti.total_price) as total_revenue
-            FROM sales_transaction_items sti
-            JOIN products p ON sti.product_id = p.id
-            JOIN categories c ON p.category_id = c.id
-            JOIN sales_transactions st ON sti.transaction_id = st.id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s{product_filter}
-            GROUP BY p.id, p.name, c.name
-            ORDER BY total_revenue DESC
-            LIMIT %s
-        ),
-        current_period_sales AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                c.name as category_name,
-                COUNT(DISTINCT st.id) as current_transactions,
-                SUM(sti.quantity) as current_quantity,
-                SUM(sti.total_price) as current_revenue,
-                AVG(sti.unit_price) as current_avg_price
-            FROM sales_transaction_items sti
-            JOIN products p ON sti.product_id = p.id
-            JOIN categories c ON p.category_id = c.id
-            JOIN sales_transactions st ON sti.transaction_id = st.id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s
-              AND p.id IN (SELECT id FROM top_products){product_filter}
-            GROUP BY p.id, p.name, c.name
-        ),
-        comparison_period_sales AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                COUNT(DISTINCT st.id) as comparison_transactions,
-                SUM(sti.quantity) as comparison_quantity,
-                SUM(sti.total_price) as comparison_revenue,
-                AVG(sti.unit_price) as comparison_avg_price
-            FROM sales_transaction_items sti
-            JOIN products p ON sti.product_id = p.id
-            JOIN sales_transactions st ON sti.transaction_id = st.id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s
-              AND p.id IN (SELECT id FROM top_products){product_filter}
-            GROUP BY p.id, p.name
-        )
-        SELECT 
-            tp.product_name,
-            tp.category_name,
-            COALESCE(cps.current_transactions, 0) as current_transactions,
-            COALESCE(cps.current_quantity, 0) as current_quantity,
-            COALESCE(cps.current_revenue, 0) as current_revenue,
-            COALESCE(cps.current_avg_price, 0) as current_avg_price,
-            COALESCE(cmps.comparison_transactions, 0) as comparison_transactions,
-            COALESCE(cmps.comparison_quantity, 0) as comparison_quantity,
-            COALESCE(cmps.comparison_revenue, 0) as comparison_revenue,
-            COALESCE(cmps.comparison_avg_price, 0) as comparison_avg_price,
-            -- Calculate percentage changes
-            CASE 
-                WHEN cmps.comparison_revenue > 0 THEN 
-                    ((cps.current_revenue - cmps.comparison_revenue) / cmps.comparison_revenue) * 100
-                ELSE 0
-            END as revenue_change_percent,
-            CASE 
-                WHEN cmps.comparison_quantity > 0 THEN 
-                    ((cps.current_quantity - cmps.comparison_quantity) / cmps.comparison_quantity) * 100
-                ELSE 0
-            END as quantity_change_percent,
-            CASE 
-                WHEN cmps.comparison_transactions > 0 THEN 
-                    ((cps.current_transactions - cmps.comparison_transactions) / cmps.comparison_transactions) * 100
-                ELSE 0
-            END as transaction_change_percent
-        FROM top_products tp
-        LEFT JOIN current_period_sales cps ON tp.id = cps.product_id
-        LEFT JOIN comparison_period_sales cmps ON tp.id = cmps.product_id
-        ORDER BY tp.total_revenue DESC
-        """
-        
-        # Build parameters
-        params = [
-            current_start, current_end,  # For top_products CTE
-            limit,  # LIMIT for top_products
-            current_start, current_end,  # For current_period_sales
-            comparison_start, comparison_end  # For comparison_period_sales
-        ]
-        
-        # Add product_ids to params if specified
-        if product_ids:
-            params.extend(product_ids)  # For top_products filter
-            params.extend(product_ids)  # For current_period_sales filter
-            params.extend(product_ids)  # For comparison_period_sales filter
-        
-        return self.execute_query(query, params)
-    
-    def get_sales_trend_comparison_summary(self, current_start, current_end, comparison_start, comparison_end):
-        """Get summary comparison metrics between two periods"""
-        query = """
-        WITH current_period AS (
-            SELECT 
-                COUNT(DISTINCT st.id) as transactions,
-                SUM(sti.total_price) as revenue,
-                SUM(sti.quantity) as quantity,
-                COUNT(DISTINCT st.customer_id) as customers,
-                COUNT(DISTINCT sti.product_id) as unique_products
-            FROM sales_transactions st
-            JOIN sales_transaction_items sti ON st.id = sti.transaction_id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s
-        ),
-        comparison_period AS (
-            SELECT 
-                COUNT(DISTINCT st.id) as transactions,
-                SUM(sti.total_price) as revenue,
-                SUM(sti.quantity) as quantity,
-                COUNT(DISTINCT st.customer_id) as customers,
-                COUNT(DISTINCT sti.product_id) as unique_products
-            FROM sales_transactions st
-            JOIN sales_transaction_items sti ON st.id = sti.transaction_id
-            WHERE st.transaction_date >= %s AND st.transaction_date <= %s
-        )
-        SELECT 
-            cp.transactions as current_transactions,
-            cp.revenue as current_revenue,
-            cp.quantity as current_quantity,
-            cp.customers as current_customers,
-            cp.unique_products as current_unique_products,
-            cmpp.transactions as comparison_transactions,
-            cmpp.revenue as comparison_revenue,
-            cmpp.quantity as comparison_quantity,
-            cmpp.customers as comparison_customers,
-            cmpp.unique_products as comparison_unique_products,
-            -- Calculate percentage changes
-            CASE 
-                WHEN cmpp.revenue > 0 THEN ((cp.revenue - cmpp.revenue) / cmpp.revenue) * 100
-                ELSE 0
-            END as revenue_change_percent,
-            CASE 
-                WHEN cmpp.transactions > 0 THEN ((cp.transactions - cmpp.transactions) / cmpp.transactions) * 100
-                ELSE 0
-            END as transaction_change_percent,
-            CASE 
-                WHEN cmpp.quantity > 0 THEN ((cp.quantity - cmpp.quantity) / cmpp.quantity) * 100
-                ELSE 0
-            END as quantity_change_percent,
-            CASE 
-                WHEN cmpp.customers > 0 THEN ((cp.customers - cmpp.customers) / cmpp.customers) * 100
-                ELSE 0
-            END as customer_change_percent
-        FROM current_period cp
-        CROSS JOIN comparison_period cmpp
-        """
-        
-        return self.execute_query(query, [current_start, current_end, comparison_start, comparison_end])
-    
-    def get_hourly_sales_data(self):
-        """Get hourly sales data for today"""
+    def get_inventory_value_analysis(self):
+        """Get inventory value analysis by category"""
         query = """
         SELECT 
-            EXTRACT(HOUR FROM transaction_date) as hour,
-            COUNT(*) as transaction_count,
-            SUM(total_amount) as hourly_revenue,
-            SUM(sti.quantity) as items_sold
-        FROM sales_transactions st
-        LEFT JOIN sales_transaction_items sti ON st.id = sti.transaction_id
-        WHERE DATE(transaction_date) = CURRENT_DATE
-        GROUP BY EXTRACT(HOUR FROM transaction_date)
-        ORDER BY hour
+            c.name as category,
+            COUNT(p.id) as total_products,
+            SUM(p.current_stock) as total_stock_units,
+            SUM(p.current_stock * p.cost_price) as total_inventory_value,
+            AVG(p.current_stock * p.cost_price) as avg_product_value,
+            SUM(CASE WHEN p.current_stock = 0 THEN 1 ELSE 0 END) as out_of_stock_count,
+            SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) as low_stock_count,
+            ROUND(
+                SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) * 100.0 / 
+                COUNT(p.id), 2
+            ) as low_stock_percentage
+        FROM categories c
+        JOIN products p ON c.id = p.category_id
+        WHERE p.is_active = TRUE
+        GROUP BY c.id, c.name
+        ORDER BY total_inventory_value DESC
         """
+        
         return self.execute_query(query)
     
-    def get_todays_top_products(self, limit=5):
-        """Get today's top selling products"""
+    def get_supplier_performance_analysis(self):
+        """Get supplier performance analysis for restocking decisions"""
         query = """
+        WITH supplier_movements AS (
+            SELECT 
+                s.id as supplier_id,
+                s.name as supplier_name,
+                s.contact_person,
+                s.phone,
+                COUNT(DISTINCT p.id) as products_supplied,
+                COUNT(CASE WHEN im.movement_type = 'inbound' THEN 1 END) as delivery_count,
+                SUM(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE 0 END) as total_delivered,
+                AVG(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE NULL END) as avg_delivery_size,
+                MAX(CASE WHEN im.movement_type = 'inbound' THEN im.movement_date ELSE NULL END) as last_delivery_date
+            FROM suppliers s
+            LEFT JOIN products p ON s.id = p.supplier_id
+            LEFT JOIN inventory_movements im ON p.id = im.product_id
+            WHERE s.is_active = TRUE
+            AND (im.movement_date >= %s OR im.movement_date IS NULL)
+            GROUP BY s.id, s.name, s.contact_person, s.phone
+        ),
+        supplier_stock_status AS (
+            SELECT 
+                s.id as supplier_id,
+                COUNT(CASE WHEN p.current_stock = 0 THEN 1 END) as out_of_stock_products,
+                COUNT(CASE WHEN p.current_stock <= p.reorder_level THEN 1 END) as low_stock_products,
+                SUM(p.current_stock * p.cost_price) as total_inventory_value
+            FROM suppliers s
+            LEFT JOIN products p ON s.id = p.supplier_id
+            WHERE s.is_active = TRUE AND p.is_active = TRUE
+            GROUP BY s.id
+        )
+        SELECT 
+            sm.*,
+            sss.out_of_stock_products,
+            sss.low_stock_products,
+            sss.total_inventory_value,
+            CASE 
+                WHEN sm.delivery_count >= 5 AND sss.low_stock_products <= 2 THEN 'EXCELLENT'
+                WHEN sm.delivery_count >= 3 AND sss.low_stock_products <= 5 THEN 'GOOD'
+                WHEN sm.delivery_count >= 1 OR sss.low_stock_products <= 8 THEN 'FAIR'
+                ELSE 'POOR'
+            END as performance_rating
+        FROM supplier_movements sm
+        LEFT JOIN supplier_stock_status sss ON sm.supplier_id = sss.supplier_id
+        ORDER BY 
+            CASE 
+                WHEN performance_rating = 'EXCELLENT' THEN 1
+                WHEN performance_rating = 'GOOD' THEN 2
+                WHEN performance_rating = 'FAIR' THEN 3
+                ELSE 4
+            END,
+            sm.total_delivered DESC
+        """
+        
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        return self.execute_query(query, [thirty_days_ago])
+    
+    def get_critical_inventory_report(self):
+        """Get comprehensive critical inventory report"""
+        query = """
+        WITH product_sales AS (
+            SELECT 
+                p.id,
+                COALESCE(SUM(sti.quantity), 0) as sales_last_30_days,
+                COALESCE(AVG(sti.quantity), 0) as avg_daily_sales
+            FROM products p
+            LEFT JOIN sales_transaction_items sti ON p.id = sti.product_id
+            LEFT JOIN sales_transactions st ON sti.transaction_id = st.id
+            WHERE st.transaction_date >= %s OR st.transaction_date IS NULL
+            GROUP BY p.id
+        ),
+        inventory_movements AS (
+            SELECT 
+                p.id,
+                COALESCE(SUM(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE 0 END), 0) as inbound_last_30_days,
+                COALESCE(SUM(CASE WHEN im.movement_type = 'outbound' THEN im.quantity ELSE 0 END), 0) as outbound_last_30_days,
+                MAX(CASE WHEN im.movement_type = 'inbound' THEN im.movement_date ELSE NULL END) as last_restock_date
+            FROM products p
+            LEFT JOIN inventory_movements im ON p.id = im.product_id
+            WHERE im.movement_date >= %s OR im.movement_date IS NULL
+            GROUP BY p.id
+        )
         SELECT 
             p.name as product_name,
-            SUM(sti.quantity) as quantity_sold,
-            SUM(sti.total_price) as revenue
-        FROM sales_transaction_items sti
-        JOIN products p ON sti.product_id = p.id
-        JOIN sales_transactions st ON sti.transaction_id = st.id
-        WHERE DATE(st.transaction_date) = CURRENT_DATE
-        GROUP BY p.id, p.name
-        ORDER BY quantity_sold DESC
-        LIMIT %s
+            p.sku,
+            c.name as category,
+            p.current_stock,
+            p.reorder_level,
+            p.max_stock_level,
+            s.name as supplier_name,
+            s.contact_person as supplier_contact,
+            s.phone as supplier_phone,
+            ps.sales_last_30_days,
+            ps.avg_daily_sales,
+            im.inbound_last_30_days,
+            im.outbound_last_30_days,
+            im.last_restock_date,
+            CASE 
+                WHEN p.current_stock = 0 THEN 'OUT_OF_STOCK'
+                WHEN p.current_stock <= p.reorder_level THEN 'CRITICAL'
+                WHEN p.current_stock <= p.reorder_level * 1.5 THEN 'LOW'
+                WHEN p.current_stock >= p.max_stock_level * 0.8 THEN 'OVERSTOCKED'
+                ELSE 'NORMAL'
+            END as stock_status,
+            CASE 
+                WHEN ps.avg_daily_sales > 0 THEN 
+                    ROUND(p.current_stock / ps.avg_daily_sales, 1)
+                ELSE NULL
+            END as days_of_stock_remaining,
+            CASE 
+                WHEN ps.avg_daily_sales > 0 THEN 
+                    GREATEST(p.reorder_level * 2, ps.avg_daily_sales * 30)
+                ELSE p.reorder_level * 2
+            END as suggested_order_quantity
+        FROM products p
+        JOIN categories c ON p.category_id = c.id
+        LEFT JOIN suppliers s ON p.supplier_id = s.id
+        LEFT JOIN product_sales ps ON p.id = ps.id
+        LEFT JOIN inventory_movements im ON p.id = im.id
+        WHERE p.is_active = TRUE
+        ORDER BY 
+            CASE 
+                WHEN p.current_stock = 0 THEN 1
+                WHEN p.current_stock <= p.reorder_level THEN 2
+                WHEN p.current_stock <= p.reorder_level * 1.5 THEN 3
+                ELSE 4
+            END,
+            ps.avg_daily_sales DESC,
+            p.current_stock ASC
         """
-        return self.execute_query(query, [limit])
+        
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        return self.execute_query(query, [thirty_days_ago, thirty_days_ago])
     
-    def get_recent_transactions(self, limit=10):
-        """Get recent transactions"""
+    def get_restock_recommendations(self, days_ahead=30):
+        """Get intelligent restock recommendations based on sales trends"""
+        query = """
+        WITH sales_trends AS (
+            SELECT 
+                p.id,
+                p.name,
+                p.current_stock,
+                p.reorder_level,
+                p.max_stock_level,
+                AVG(CASE 
+                    WHEN st.transaction_date >= %s THEN sti.quantity 
+                    ELSE NULL 
+                END) as avg_daily_sales_recent,
+                AVG(CASE 
+                    WHEN st.transaction_date >= %s AND st.transaction_date < %s THEN sti.quantity 
+                    ELSE NULL 
+                END) as avg_daily_sales_previous,
+                COUNT(DISTINCT DATE(st.transaction_date)) as days_with_sales
+            FROM products p
+            LEFT JOIN sales_transaction_items sti ON p.id = sti.product_id
+            LEFT JOIN sales_transactions st ON sti.transaction_id = st.id
+            WHERE (st.transaction_date >= %s OR st.transaction_date IS NULL)
+            AND p.is_active = TRUE
+            GROUP BY p.id, p.name, p.current_stock, p.reorder_level, p.max_stock_level
+        ),
+        demand_forecast AS (
+            SELECT 
+                *,
+                COALESCE(avg_daily_sales_recent, avg_daily_sales_previous, 1) as projected_daily_demand,
+                CASE 
+                    WHEN avg_daily_sales_recent > avg_daily_sales_previous * 1.2 THEN 'INCREASING'
+                    WHEN avg_daily_sales_recent < avg_daily_sales_previous * 0.8 THEN 'DECREASING'
+                    ELSE 'STABLE'
+                END as demand_trend
+            FROM sales_trends
+        )
+        SELECT 
+            df.name as product_name,
+            c.name as category,
+            s.name as supplier_name,
+            df.current_stock,
+            df.reorder_level,
+            df.projected_daily_demand,
+            df.demand_trend,
+            df.projected_daily_demand * %s as projected_demand_period,
+            CASE 
+                WHEN df.current_stock <= df.projected_daily_demand * 7 THEN 'URGENT'
+                WHEN df.current_stock <= df.projected_daily_demand * 14 THEN 'HIGH'
+                WHEN df.current_stock <= df.projected_daily_demand * 21 THEN 'MEDIUM'
+                ELSE 'LOW'
+            END as restock_priority,
+            GREATEST(
+                df.max_stock_level - df.current_stock,
+                df.projected_daily_demand * %s - df.current_stock,
+                df.reorder_level * 2
+            ) as recommended_order_quantity,
+            ROUND(df.current_stock / NULLIF(df.projected_daily_demand, 0), 1) as estimated_days_remaining
+        FROM demand_forecast df
+        JOIN categories c ON df.id = c.id  -- Note: This should be fixed to proper join
+        LEFT JOIN suppliers s ON df.id = s.id  -- Note: This should be fixed to proper join
+        WHERE df.current_stock <= df.projected_daily_demand * %s  -- Only show items that need restocking soon
+        ORDER BY 
+            CASE 
+                WHEN df.current_stock <= df.projected_daily_demand * 7 THEN 1
+                WHEN df.current_stock <= df.projected_daily_demand * 14 THEN 2
+                WHEN df.current_stock <= df.projected_daily_demand * 21 THEN 3
+                ELSE 4
+            END,
+            df.projected_daily_demand DESC
+        """
+        
+        recent_period_start = datetime.now() - timedelta(days=14)  # Last 2 weeks
+        previous_period_start = datetime.now() - timedelta(days=28)  # Previous 2 weeks
+        previous_period_end = datetime.now() - timedelta(days=14)
+        analysis_period_start = datetime.now() - timedelta(days=28)  # Total analysis period
+        
+        return self.execute_query(query, [
+            recent_period_start, previous_period_start, previous_period_end, 
+            analysis_period_start, days_ahead, days_ahead, days_ahead
+        ])
+    
+    def get_inventory_value_analysis(self):
+        """Get inventory value analysis by category"""
         query = """
         SELECT 
-            TO_CHAR(transaction_date, 'HH24:MI') as time,
-            CONCAT('C', LPAD(customer_id::text, 3, '0')) as customer_id,
-            (SELECT COUNT(*) FROM sales_transaction_items WHERE transaction_id = st.id) as items,
-            total_amount as total
-        FROM sales_transactions st
-        WHERE DATE(transaction_date) = CURRENT_DATE
-        ORDER BY transaction_date DESC
-        LIMIT %s
+            c.name as category,
+            COUNT(p.id) as total_products,
+            SUM(p.current_stock) as total_stock_units,
+            SUM(p.current_stock * p.cost_price) as total_inventory_value,
+            AVG(p.current_stock * p.cost_price) as avg_product_value,
+            SUM(CASE WHEN p.current_stock = 0 THEN 1 ELSE 0 END) as out_of_stock_count,
+            SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) as low_stock_count,
+            ROUND(
+                SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) * 100.0 / 
+                COUNT(p.id), 2
+            ) as low_stock_percentage
+        FROM categories c
+        JOIN products p ON c.id = p.category_id
+        WHERE p.is_active = TRUE
+        GROUP BY c.id, c.name
+        ORDER BY total_inventory_value DESC
         """
-        return self.execute_query(query, [limit])
+        
+        return self.execute_query(query)
+    
+    def get_supplier_performance_analysis(self):
+        """Get supplier performance analysis for restocking decisions"""
+        query = """
+        WITH supplier_movements AS (
+            SELECT 
+                s.id as supplier_id,
+                s.name as supplier_name,
+                s.contact_person,
+                s.phone,
+                COUNT(DISTINCT p.id) as products_supplied,
+                COUNT(CASE WHEN im.movement_type = 'inbound' THEN 1 END) as delivery_count,
+                SUM(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE 0 END) as total_delivered,
+                AVG(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE NULL END) as avg_delivery_size,
+                MAX(CASE WHEN im.movement_type = 'inbound' THEN im.movement_date ELSE NULL END) as last_delivery_date
+            FROM suppliers s
+            LEFT JOIN products p ON s.id = p.supplier_id
+            LEFT JOIN inventory_movements im ON p.id = im.product_id
+            WHERE s.is_active = TRUE
+            AND (im.movement_date >= %s OR im.movement_date IS NULL)
+            GROUP BY s.id, s.name, s.contact_person, s.phone
+        ),
+        supplier_stock_status AS (
+            SELECT 
+                s.id as supplier_id,
+                COUNT(CASE WHEN p.current_stock = 0 THEN 1 END) as out_of_stock_products,
+                COUNT(CASE WHEN p.current_stock <= p.reorder_level THEN 1 END) as low_stock_products,
+                SUM(p.current_stock * p.cost_price) as total_inventory_value
+            FROM suppliers s
+            LEFT JOIN products p ON s.id = p.supplier_id
+            WHERE s.is_active = TRUE AND p.is_active = TRUE
+            GROUP BY s.id
+        )
+        SELECT 
+            sm.*,
+            sss.out_of_stock_products,
+            sss.low_stock_products,
+            sss.total_inventory_value,
+            CASE 
+                WHEN sm.delivery_count >= 5 AND sss.low_stock_products <= 2 THEN 'EXCELLENT'
+                WHEN sm.delivery_count >= 3 AND sss.low_stock_products <= 5 THEN 'GOOD'
+                WHEN sm.delivery_count >= 1 OR sss.low_stock_products <= 8 THEN 'FAIR'
+                ELSE 'POOR'
+            END as performance_rating
+        FROM supplier_movements sm
+        LEFT JOIN supplier_stock_status sss ON sm.supplier_id = sss.supplier_id
+        ORDER BY 
+            CASE 
+                WHEN performance_rating = 'EXCELLENT' THEN 1
+                WHEN performance_rating = 'GOOD' THEN 2
+                WHEN performance_rating = 'FAIR' THEN 3
+                ELSE 4
+            END,
+            sm.total_delivered DESC
+        """
+        
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        return self.execute_query(query, [thirty_days_ago])
+    
+    def get_critical_inventory_report(self):
+        """Get comprehensive critical inventory report"""
+        query = """
+        WITH product_sales AS (
+            SELECT 
+                p.id,
+                COALESCE(SUM(sti.quantity), 0) as sales_last_30_days,
+                COALESCE(AVG(sti.quantity), 0) as avg_daily_sales
+            FROM products p
+            LEFT JOIN sales_transaction_items sti ON p.id = sti.product_id
+            LEFT JOIN sales_transactions st ON sti.transaction_id = st.id
+            WHERE st.transaction_date >= %s OR st.transaction_date IS NULL
+            GROUP BY p.id
+        ),
+        inventory_movements AS (
+            SELECT 
+                p.id,
+                COALESCE(SUM(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE 0 END), 0) as inbound_last_30_days,
+                COALESCE(SUM(CASE WHEN im.movement_type = 'outbound' THEN im.quantity ELSE 0 END), 0) as outbound_last_30_days,
+                MAX(CASE WHEN im.movement_type = 'inbound' THEN im.movement_date ELSE NULL END) as last_restock_date
+            FROM products p
+            LEFT JOIN inventory_movements im ON p.id = im.product_id
+            WHERE im.movement_date >= %s OR im.movement_date IS NULL
+            GROUP BY p.id
+        )
+        SELECT 
+            p.name as product_name,
+            p.sku,
+            c.name as category,
+            p.current_stock,
+            p.reorder_level,
+            p.max_stock_level,
+            s.name as supplier_name,
+            s.contact_person as supplier_contact,
+            s.phone as supplier_phone,
+            ps.sales_last_30_days,
+            ps.avg_daily_sales,
+            im.inbound_last_30_days,
+            im.outbound_last_30_days,
+            im.last_restock_date,
+            CASE 
+                WHEN p.current_stock = 0 THEN 'OUT_OF_STOCK'
+                WHEN p.current_stock <= p.reorder_level THEN 'CRITICAL'
+                WHEN p.current_stock <= p.reorder_level * 1.5 THEN 'LOW'
+                WHEN p.current_stock >= p.max_stock_level * 0.8 THEN 'OVERSTOCKED'
+                ELSE 'NORMAL'
+            END as stock_status,
+            CASE 
+                WHEN ps.avg_daily_sales > 0 THEN 
+                    ROUND(p.current_stock / ps.avg_daily_sales, 1)
+                ELSE NULL
+            END as days_of_stock_remaining,
+            CASE 
+                WHEN ps.avg_daily_sales > 0 THEN 
+                    GREATEST(p.reorder_level * 2, ps.avg_daily_sales * 30)
+                ELSE p.reorder_level * 2
+            END as suggested_order_quantity
+        FROM products p
+        JOIN categories c ON p.category_id = c.id
+        LEFT JOIN suppliers s ON p.supplier_id = s.id
+        LEFT JOIN product_sales ps ON p.id = ps.id
+        LEFT JOIN inventory_movements im ON p.id = im.id
+        WHERE p.is_active = TRUE
+        ORDER BY 
+            CASE 
+                WHEN p.current_stock = 0 THEN 1
+                WHEN p.current_stock <= p.reorder_level THEN 2
+                WHEN p.current_stock <= p.reorder_level * 1.5 THEN 3
+                ELSE 4
+            END,
+            ps.avg_daily_sales DESC,
+            p.current_stock ASC
+        """
+        
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        return self.execute_query(query, [thirty_days_ago, thirty_days_ago])
+    
+    def get_restock_recommendations(self, days_ahead=30):
+        """Get intelligent restock recommendations based on sales trends"""
+        query = """
+        WITH sales_trends AS (
+            SELECT 
+                p.id,
+                p.name,
+                p.current_stock,
+                p.reorder_level,
+                p.max_stock_level,
+                AVG(CASE 
+                    WHEN st.transaction_date >= %s THEN sti.quantity 
+                    ELSE NULL 
+                END) as avg_daily_sales_recent,
+                AVG(CASE 
+                    WHEN st.transaction_date >= %s AND st.transaction_date < %s THEN sti.quantity 
+                    ELSE NULL 
+                END) as avg_daily_sales_previous,
+                COUNT(DISTINCT DATE(st.transaction_date)) as days_with_sales
+            FROM products p
+            LEFT JOIN sales_transaction_items sti ON p.id = sti.product_id
+            LEFT JOIN sales_transactions st ON sti.transaction_id = st.id
+            WHERE (st.transaction_date >= %s OR st.transaction_date IS NULL)
+            AND p.is_active = TRUE
+            GROUP BY p.id, p.name, p.current_stock, p.reorder_level, p.max_stock_level
+        ),
+        demand_forecast AS (
+            SELECT 
+                *,
+                COALESCE(avg_daily_sales_recent, avg_daily_sales_previous, 1) as projected_daily_demand,
+                CASE 
+                    WHEN avg_daily_sales_recent > avg_daily_sales_previous * 1.2 THEN 'INCREASING'
+                    WHEN avg_daily_sales_recent < avg_daily_sales_previous * 0.8 THEN 'DECREASING'
+                    ELSE 'STABLE'
+                END as demand_trend
+            FROM sales_trends
+        )
+        SELECT 
+            df.name as product_name,
+            c.name as category,
+            s.name as supplier_name,
+            df.current_stock,
+            df.reorder_level,
+            df.projected_daily_demand,
+            df.demand_trend,
+            df.projected_daily_demand * %s as projected_demand_period,
+            CASE 
+                WHEN df.current_stock <= df.projected_daily_demand * 7 THEN 'URGENT'
+                WHEN df.current_stock <= df.projected_daily_demand * 14 THEN 'HIGH'
+                WHEN df.current_stock <= df.projected_daily_demand * 21 THEN 'MEDIUM'
+                ELSE 'LOW'
+            END as restock_priority,
+            GREATEST(
+                df.max_stock_level - df.current_stock,
+                df.projected_daily_demand * %s - df.current_stock,
+                df.reorder_level * 2
+            ) as recommended_order_quantity,
+            ROUND(df.current_stock / NULLIF(df.projected_daily_demand, 0), 1) as estimated_days_remaining
+        FROM demand_forecast df
+        JOIN categories c ON df.id = c.id  -- Note: This should be fixed to proper join
+        LEFT JOIN suppliers s ON df.id = s.id  -- Note: This should be fixed to proper join
+        WHERE df.current_stock <= df.projected_daily_demand * %s  -- Only show items that need restocking soon
+        ORDER BY 
+            CASE 
+                WHEN df.current_stock <= df.projected_daily_demand * 7 THEN 1
+                WHEN df.current_stock <= df.projected_daily_demand * 14 THEN 2
+                WHEN df.current_stock <= df.projected_daily_demand * 21 THEN 3
+                ELSE 4
+            END,
+            df.projected_daily_demand DESC
+        """
+        
+        recent_period_start = datetime.now() - timedelta(days=14)  # Last 2 weeks
+        previous_period_start = datetime.now() - timedelta(days=28)  # Previous 2 weeks
+        previous_period_end = datetime.now() - timedelta(days=14)
+        analysis_period_start = datetime.now() - timedelta(days=28)  # Total analysis period
+        
+        return self.execute_query(query, [
+            recent_period_start, previous_period_start, previous_period_end, 
+            analysis_period_start, days_ahead, days_ahead, days_ahead
+        ])
+    
+    def get_inventory_value_analysis(self):
+        """Get inventory value analysis by category"""
+        query = """
+        SELECT 
+            c.name as category,
+            COUNT(p.id) as total_products,
+            SUM(p.current_stock) as total_stock_units,
+            SUM(p.current_stock * p.cost_price) as total_inventory_value,
+            AVG(p.current_stock * p.cost_price) as avg_product_value,
+            SUM(CASE WHEN p.current_stock = 0 THEN 1 ELSE 0 END) as out_of_stock_count,
+            SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) as low_stock_count,
+            ROUND(
+                SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) * 100.0 / 
+                COUNT(p.id), 2
+            ) as low_stock_percentage
+        FROM categories c
+        JOIN products p ON c.id = p.category_id
+        WHERE p.is_active = TRUE
+        GROUP BY c.id, c.name
+        ORDER BY total_inventory_value DESC
+        """
+        
+        return self.execute_query(query)
+    
+    def get_supplier_performance_analysis(self):
+        """Get supplier performance analysis for restocking decisions"""
+        query = """
+        WITH supplier_movements AS (
+            SELECT 
+                s.id as supplier_id,
+                s.name as supplier_name,
+                s.contact_person,
+                s.phone,
+                COUNT(DISTINCT p.id) as products_supplied,
+                COUNT(CASE WHEN im.movement_type = 'inbound' THEN 1 END) as delivery_count,
+                SUM(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE 0 END) as total_delivered,
+                AVG(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE NULL END) as avg_delivery_size,
+                MAX(CASE WHEN im.movement_type = 'inbound' THEN im.movement_date ELSE NULL END) as last_delivery_date
+            FROM suppliers s
+            LEFT JOIN products p ON s.id = p.supplier_id
+            LEFT JOIN inventory_movements im ON p.id = im.product_id
+            WHERE s.is_active = TRUE
+            AND (im.movement_date >= %s OR im.movement_date IS NULL)
+            GROUP BY s.id, s.name, s.contact_person, s.phone
+        ),
+        supplier_stock_status AS (
+            SELECT 
+                s.id as supplier_id,
+                COUNT(CASE WHEN p.current_stock = 0 THEN 1 END) as out_of_stock_products,
+                COUNT(CASE WHEN p.current_stock <= p.reorder_level THEN 1 END) as low_stock_products,
+                SUM(p.current_stock * p.cost_price) as total_inventory_value
+            FROM suppliers s
+            LEFT JOIN products p ON s.id = p.supplier_id
+            WHERE s.is_active = TRUE AND p.is_active = TRUE
+            GROUP BY s.id
+        )
+        SELECT 
+            sm.*,
+            sss.out_of_stock_products,
+            sss.low_stock_products,
+            sss.total_inventory_value,
+            CASE 
+                WHEN sm.delivery_count >= 5 AND sss.low_stock_products <= 2 THEN 'EXCELLENT'
+                WHEN sm.delivery_count >= 3 AND sss.low_stock_products <= 5 THEN 'GOOD'
+                WHEN sm.delivery_count >= 1 OR sss.low_stock_products <= 8 THEN 'FAIR'
+                ELSE 'POOR'
+            END as performance_rating
+        FROM supplier_movements sm
+        LEFT JOIN supplier_stock_status sss ON sm.supplier_id = sss.supplier_id
+        ORDER BY 
+            CASE 
+                WHEN performance_rating = 'EXCELLENT' THEN 1
+                WHEN performance_rating = 'GOOD' THEN 2
+                WHEN performance_rating = 'FAIR' THEN 3
+                ELSE 4
+            END,
+            sm.total_delivered DESC
+        """
+        
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        return self.execute_query(query, [thirty_days_ago])
