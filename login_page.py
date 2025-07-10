@@ -38,6 +38,8 @@ class LoginPage(tk.Frame):
             
             # Store user info in the main controller
             self.controller.set_current_user(user_info)
+
+            self.controller.state('zoomed')
             
             # Navigate directly to appropriate dashboard based on role
             role = user_info['role']
@@ -56,7 +58,6 @@ class LoginPage(tk.Frame):
         self.controller.set_current_user(None)  # Clear user from controller
         self.entry_username.delete(0, tk.END)
         self.entry_password.delete(0, tk.END)
-        messagebox.showinfo("Logout", "You have been logged out successfully")
 
     def get_current_user(self):
         """Get current logged in user info"""
@@ -108,3 +109,5 @@ class LoginPage(tk.Frame):
 
         tk.Button(form_frame, text="Login", command=self.login, font=self.font, bg=self.accent,
                   fg="white", relief="flat", padx=20, pady=5).pack(anchor="w")
+        
+        self.entry_password.bind("<Return>", lambda event: self.login())
