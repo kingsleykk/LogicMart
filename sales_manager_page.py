@@ -2502,6 +2502,8 @@ class SManagerPage(tk.Frame):
             pass
 
     def logout(self):
+        self.controller.state('normal')
+        messagebox.showinfo("Logout", "You have been logged out successfully")    
         self.controller.show_frame("LoginPage")
         self.controller.title("Login Page")
 
