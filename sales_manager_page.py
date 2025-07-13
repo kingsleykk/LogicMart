@@ -1050,7 +1050,7 @@ class PopularProduct(SalesDataFrame):
                         fg=self.theme_colors['fg']).pack(pady=8)
                 
                 # Charts section
-                self.create_charts_section(main_frame, df, metric)
+                self.create_charts_section(main_frame, df, metric, limit)
                 
                 # Data table frame
                 table_frame = tk.LabelFrame(main_frame, text="Popular Products Data", 
@@ -1118,7 +1118,7 @@ class PopularProduct(SalesDataFrame):
             print(f"Error getting popular products data: {e}")
             return pd.DataFrame()
     
-    def create_charts_section(self, parent, df, metric):
+    def create_charts_section(self, parent, df, metric, limit):
         """Create enhanced charts section for popular products"""
         charts_frame = tk.Frame(parent, bg=self.theme_colors['bg'])
         charts_frame.pack(fill="both", expand=True, padx=20, pady=10)
@@ -1131,27 +1131,27 @@ class PopularProduct(SalesDataFrame):
         right_chart_frame.pack(side="right", fill="both", expand=True, padx=(5, 0))
         
         # Create main bar chart
-        self.create_main_chart(left_chart_frame, df, metric)
+        self.create_main_chart(left_chart_frame, df, metric, limit)
         
         # Create category distribution chart
         self.create_category_distribution_chart(right_chart_frame, df)
     
-    def create_main_chart(self, parent, df, metric):
+    def create_main_chart(self, parent, df, metric, limit):
         """Create main bar chart for popular products"""
         try:
             fig, ax = plt.subplots(figsize=(10, 6), facecolor=self.theme_colors['chart_bg'])
             
             if not df.empty and metric in df.columns:
-                # Create bar chart
-                products = df['product_name'].head(10)
-                values = df[metric].head(10)
+                # Create bar chart - use the selected limit instead of hardcoded 10
+                products = df['product_name'].head(limit)
+                values = df[metric].head(limit)
                 
-                colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'] * 2
+                colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'] * 5  # More colors for higher limits
                 bars = ax.bar(range(len(products)), values, color=colors[:len(products)], alpha=0.8)
                 
                 ax.set_xlabel('Products')
                 ax.set_ylabel(metric.replace('_', ' ').title())
-                ax.set_title(f'Top Products by {metric.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+                ax.set_title(f'Top {limit} Products by {metric.replace("_", " ").title()}', fontsize=14, fontweight='bold')
                 ax.set_xticks(range(len(products)))
                 ax.set_xticklabels(products, rotation=45, ha='right')
                 
