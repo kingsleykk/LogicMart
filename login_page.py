@@ -97,10 +97,12 @@ class LoginPage(tk.Frame):
         tk.Label(form_frame, text="Username", font=self.font, fg=self.text_color, bg=self.theme_bg).pack(anchor='w')
         self.entry_username = tk.Entry(form_frame, font=self.font, width=30)
         self.entry_username.pack(anchor='w', pady=(0, 15))
+        self.entry_username.bind('<Return>', lambda event: self.login())
 
         tk.Label(form_frame, text="Password", font=self.font, fg=self.text_color, bg=self.theme_bg).pack(anchor='w')
         self.entry_password = tk.Entry(form_frame, show="*", font=self.font, width=30)
         self.entry_password.pack(anchor='w', pady=(0, 15))
+        self.entry_password.bind('<Return>', lambda event: self.login())
 
         self.show_var = tk.BooleanVar()
         tk.Checkbutton(form_frame, text="Show Password", variable=self.show_var, command=self.show_password,

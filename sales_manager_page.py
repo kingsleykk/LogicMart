@@ -2496,6 +2496,14 @@ class SManagerPage(tk.Frame):
             self.sidebar.config(width=200)
             self.toggle_button.config(text="<", anchor="e", font=("Segoe UI", 14, "bold"), padx=20, )
             self.logout_button.pack(side="bottom", fill="x", pady=(10, 20), padx=20)
+            
+            # SALES MANAGER
+            role_header = tk.Label(self.sidebar, text="SALES MANAGER", 
+                                  bg="#34495e", fg="#ecf0f1", font=("Segoe UI", 11, "bold"),
+                                  anchor="center", pady=8)
+            role_header.pack(fill="x", pady=(15, 10))
+            self.separators.append(role_header)
+            
             self.sales_trend_button.pack(fill="x", pady=(10, 0))
             self.separator(self.sidebar)
             self.customer_buying_button.pack(fill="x", pady=(10, 0))
