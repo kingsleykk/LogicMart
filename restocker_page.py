@@ -529,8 +529,11 @@ class RestockerPage(tk.Frame):
             pass
 
     def logout(self):
+        # Clear current user data
+        self.controller.set_current_user(None)
+        # Show login page (this will automatically restore the window size)
         self.controller.show_frame("LoginPage")
-        self.controller.title("Login Page")
+        self.controller.title("LogicMart Analytics System - Login")
 
     def clear_content(self):
         if self.current_content:

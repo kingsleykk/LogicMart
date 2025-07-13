@@ -24,13 +24,13 @@ class DatabaseConfig:
                 database=self.database,
                 user=self.user,
                 password=self.password,
-                connect_timeout=30,  # 30 seconds timeout
+                connect_timeout=30, 
                 keepalives=1,
                 keepalives_idle=30,
                 keepalives_interval=10,
                 keepalives_count=5
             )
-            self.connection.set_session(autocommit=True)  # Set autocommit for better cloud compatibility
+            self.connection.set_session(autocommit=True) 
             print("Database connection established successfully")
             return True
         except psycopg2.Error as e:
@@ -48,7 +48,6 @@ class DatabaseConfig:
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                # Check if connection exists and is still open
                 if not self.connection or self.connection.closed:
                     print(f"Attempt {attempt + 1}: Database connection lost or not established. Reconnecting...")
                     if not self.connect():
@@ -61,7 +60,6 @@ class DatabaseConfig:
                             print("Failed to establish database connection after all attempts")
                             return None
                 
-                # Test the connection with a simple query
                 cursor = self.connection.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
@@ -71,7 +69,6 @@ class DatabaseConfig:
                 
             except (psycopg2.Error, psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 print(f"Attempt {attempt + 1}: Connection test failed: {e}")
-                # Force close the bad connection
                 if self.connection:
                     try:
                         self.connection.close()
@@ -118,7 +115,6 @@ class UserManager:
             conn.commit()
             cursor.close()
             
-            # Migrate existing users from text file
             self.migrate_existing_users()
             
         except psycopg2.Error as e:
@@ -131,7 +127,6 @@ class UserManager:
     def migrate_existing_users(self):
         """Migrate users from text file to database"""
         try:
-            # Check if users already exist
             conn = self.db_config.get_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM users")
@@ -139,9 +134,8 @@ class UserManager:
             
             if user_count > 0:
                 cursor.close()
-                return  # Users already migrated
+                return 
             
-            # Read from text file and insert into database
             try:
                 with open("user_credentials.txt", 'r') as file:
                     for line in file:
@@ -150,7 +144,6 @@ class UserManager:
                             username, password, role = line.split(",")
                             self.create_user(username, password, role)
             except FileNotFoundError:
-                # Create default users if file doesn't exist
                 self.create_user("manager", "123", "manager")
                 self.create_user("Smanager", "123", "sales_manager")
                 self.create_user("restocker", "123", "restocker")
@@ -201,7 +194,6 @@ class UserManager:
             result = cursor.fetchone()
             
             if result:
-                # Update last login
                 update_query = """
                 UPDATE users 
                 SET last_login = CURRENT_TIMESTAMP 
@@ -248,6 +240,5 @@ class UserManager:
             print(f"Error getting user history: {e}")
             return []
 
-# Global database instance
 db_config = DatabaseConfig()
 user_manager = UserManager(db_config)

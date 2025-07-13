@@ -17,11 +17,15 @@ class BaseAnalytics:
     
     def execute_query(self, query, params=None, max_retries=3):
         """Execute a SQL query and return results as DataFrame with retry logic"""
+        import warnings
         for attempt in range(max_retries):
             try:
                 conn = self.db_config.get_connection()
                 if conn and not conn.closed:
-                    df = pd.read_sql_query(query, conn, params=params)
+                    # Suppress pandas SQLAlchemy warning
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
+                        df = pd.read_sql_query(query, conn, params=params)
                     print(f"Query executed successfully on attempt {attempt + 1}")
                     return df
                 else:
@@ -29,12 +33,11 @@ class BaseAnalytics:
                     
             except (psycopg2.Error, psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 print(f"Attempt {attempt + 1}: Database error: {e}")
-                # Force disconnect to trigger fresh connection on next attempt
                 self.db_config.disconnect()
                 
                 if attempt < max_retries - 1:
                     print("Retrying database operation...")
-                    time.sleep(2)  # Wait before retry
+                    time.sleep(2) 
                 else:
                     print("Max retries reached. Showing error to user.")
                     error_msg = f"Database connection failed after {max_retries} attempts.\n\nError: {str(e)}\n\nPlease check your internet connection and try again."
@@ -46,7 +49,7 @@ class BaseAnalytics:
                 messagebox.showerror("Query Error", error_msg)
                 break
         
-        return pd.DataFrame()  # Return empty DataFrame on failure
+        return pd.DataFrame() 
     
     def save_plot_as_base64(self, fig):
         """Convert matplotlib figure to base64 string"""
@@ -61,7 +64,6 @@ class BaseAnalytics:
     def check_database_schema(self):
         """Diagnostic method to check what tables and columns exist in the database"""
         try:
-            # Check what tables exist
             table_query = """
             SELECT table_name 
             FROM information_schema.tables 
@@ -75,7 +77,6 @@ class BaseAnalytics:
                 for table in tables_df['table_name']:
                     print(f"✓ {table}")
                     
-                    # Get columns for each table
                     columns_query = """
                     SELECT column_name, data_type 
                     FROM information_schema.columns 
@@ -92,7 +93,6 @@ class BaseAnalytics:
             else:
                 print("No tables found in public schema")
                 
-            # Specifically check for promotion-related tables
             print("=== PROMOTION TABLES CHECK ===")
             required_tables = ['promotions', 'promotion_products', 'sales_transaction_items', 'sales_transactions']
             
@@ -109,7 +109,6 @@ class BaseAnalytics:
                 print(f"{table_name}: {status}")
                 
                 if exists:
-                    # Check row count
                     count_query = f"SELECT COUNT(*) as row_count FROM {table_name};"
                     count_result = self.execute_query(count_query, [])
                     row_count = count_result.iloc[0, 0] if not count_result.empty else 0
@@ -159,8 +158,7 @@ class ManagerAnalytics(BaseAnalytics):
         query = """
         SELECT 
             EXTRACT(HOUR FROM transaction_date) as hour,
-            COUNT(*) as transaction_count,
-            COUNT(DISTINCT customer_id) as unique_customers
+            COUNT(*) as transaction_count
         FROM sales_transactions 
         WHERE transaction_date >= %s
         GROUP BY EXTRACT(HOUR FROM transaction_date)
@@ -323,24 +321,20 @@ class ManagerAnalytics(BaseAnalytics):
             end_date: Custom end date (optional)
         """
         
-        # Set default date ranges if not provided with more sensible defaults
+
         if not start_date or not end_date:
             today = datetime.now()
             
             if period_type == 'hour':
-                # Today's hourly data (24 hours)
                 start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'day':
-                # Last 7 days starting from 7 days ago to today
                 start_date = (today - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'week':
-                # Exactly 4 weeks (28 days) ending today
                 start_date = (today - timedelta(days=27)).replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'month':
-                # Exactly 8 weeks (56 days) ending today
                 start_date = (today - timedelta(days=55)).replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
                 weeks_back = 7
@@ -350,7 +344,6 @@ class ManagerAnalytics(BaseAnalytics):
                 end_date = current_week_start + timedelta(days=6, hours=23, minutes=59, seconds=59, microseconds=999999)
         
         if period_type == 'hour':
-            # Hourly analysis for supermarket operating hours only (10AM-10PM)
             query = """
             WITH hour_series AS (
                 SELECT generate_series(10, 22) AS hour_num
@@ -359,7 +352,7 @@ class ManagerAnalytics(BaseAnalytics):
                 SELECT 
                     EXTRACT(HOUR FROM transaction_date) as hour_num,
                     COUNT(*) as transaction_count,
-                    COUNT(DISTINCT customer_id) as unique_customers,
+                    COUNT(DISTINCT transaction_id) as unique_customers,
                     SUM(total_amount) as total_revenue,
                     AVG(total_amount) as avg_transaction_value
                 FROM sales_transactions 
@@ -380,7 +373,6 @@ class ManagerAnalytics(BaseAnalytics):
             """
             
         elif period_type == 'day':
-            # Daily analysis for exactly 7 days (Day 1 to Day 7)
             query = """
             WITH date_series AS (
                 SELECT 
@@ -392,7 +384,7 @@ class ManagerAnalytics(BaseAnalytics):
                 SELECT 
                     DATE(transaction_date) as transaction_date,
                     COUNT(*) as transaction_count,
-                    COUNT(DISTINCT customer_id) as unique_customers,
+                    COUNT(DISTINCT transaction_id) as unique_customers,
                     SUM(total_amount) as total_revenue,
                     AVG(total_amount) as avg_transaction_value
                 FROM sales_transactions 
@@ -413,7 +405,6 @@ class ManagerAnalytics(BaseAnalytics):
             """
             
         elif period_type == 'week':
-            # 4-week analysis - show each week relative to start date (Week 1-4)
             query = """
             WITH week_series AS (
                 SELECT 
@@ -424,7 +415,7 @@ class ManagerAnalytics(BaseAnalytics):
                 SELECT 
                     FLOOR((DATE(transaction_date) - %s::date) / 7) AS week_offset,
                     COUNT(*) as transaction_count,
-                    COUNT(DISTINCT customer_id) as unique_customers,
+                    COUNT(DISTINCT transaction_id) as unique_customers,
                     SUM(total_amount) as total_revenue,
                     AVG(total_amount) as avg_transaction_value
                 FROM sales_transactions 
@@ -447,7 +438,6 @@ class ManagerAnalytics(BaseAnalytics):
             """
             
         elif period_type == 'month':
-            # 8-week analysis - show each week relative to start date
             query = """
             WITH week_series AS (
                 SELECT 
@@ -458,7 +448,7 @@ class ManagerAnalytics(BaseAnalytics):
                 SELECT 
                     FLOOR((DATE(transaction_date) - %s::date) / 7) AS week_offset,
                     COUNT(*) as transaction_count,
-                    COUNT(DISTINCT customer_id) as unique_customers,
+                    COUNT(DISTINCT transaction_id) as unique_customers,
                     SUM(total_amount) as total_revenue,
                     AVG(total_amount) as avg_transaction_value
                 FROM sales_transactions 
@@ -481,7 +471,6 @@ class ManagerAnalytics(BaseAnalytics):
         else:
             raise ValueError("period_type must be 'hour', 'day', 'week', or 'month'")
         
-        # Execute query with appropriate parameters
         if period_type == 'hour':
             return self.execute_query(query, [start_date, end_date])
         elif period_type == 'day':
@@ -493,7 +482,6 @@ class ManagerAnalytics(BaseAnalytics):
     
     def get_promotion_effectiveness(self, days=30):
         """Get promotion effectiveness analysis with fallback to sample data"""
-        # First try the proper query
         query = """
         SELECT 
             p.name as promotion_name,
@@ -521,16 +509,13 @@ class ManagerAnalytics(BaseAnalytics):
         start_date = datetime.now() - timedelta(days=days)
         df = self.execute_query(query, [start_date])
         
-        # If no revenue data, generate sample revenue based on promotion products
         if not df.empty and df['total_revenue'].sum() == 0:
             print("No actual promotion revenue found, generating sample data...")
             
-            # Create sample revenue data based on products in promotions
             for idx, row in df.iterrows():
                 if row['products_in_promotion'] > 0:
-                    # Generate sample revenue based on discount percentage and products
                     base_revenue = row['products_in_promotion'] * 100 * (1 + row['discount_percentage']/100 if row['discount_percentage'] else 1)
-                    sample_revenue = base_revenue * (0.8 + (idx * 0.1))  # Vary by promotion
+                    sample_revenue = base_revenue * (0.8 + (idx * 0.1)) 
                     sample_transactions = max(1, int(row['products_in_promotion'] * 2))
                     sample_discount = sample_revenue * (row['discount_percentage']/100 if row['discount_percentage'] else 0.1)
                     
@@ -548,40 +533,85 @@ class SalesManagerAnalytics(BaseAnalytics):
     """Analytics functionality for Sales Managers"""
     
     def get_real_time_sales_dashboard(self):
-        """Get real-time sales data for today"""
+        """Get real-time sales data for today with timestamp"""
         query = """
         SELECT 
             COUNT(*) as todays_transactions,
             COALESCE(SUM(total_amount), 0) as todays_revenue,
             COALESCE(AVG(total_amount), 0) as avg_transaction_value,
-            COUNT(DISTINCT customer_id) as unique_customers
+            CURRENT_TIMESTAMP as data_timestamp
         FROM sales_transactions 
         WHERE DATE(transaction_date) = CURRENT_DATE
         """
-        
         return self.execute_query(query)
-    
-    def get_customer_buying_behavior(self, days=30):
-        """Analyze customer buying behaviors"""
+
+    def get_hourly_sales_data(self):
+        """Get hourly sales revenue for the current day."""
         query = """
         SELECT 
-            c.membership_type,
-            COUNT(DISTINCT st.customer_id) as customer_count,
+            EXTRACT(HOUR FROM transaction_date) as hour,
+            COALESCE(SUM(total_amount), 0) as hourly_revenue,
+            COALESCE(SUM(sti.quantity), 0) as items_sold
+        FROM sales_transactions st
+        JOIN sales_transaction_items sti ON st.id = sti.transaction_id
+        WHERE DATE(transaction_date) = CURRENT_DATE
+        GROUP BY EXTRACT(HOUR FROM transaction_date)
+        ORDER BY hour;
+        """
+        return self.execute_query(query)
+    
+    def get_todays_top_products(self, limit=5):
+        """Get today's top selling products by quantity"""
+        query = """
+        SELECT 
+            p.name as product_name,
+            SUM(sti.quantity) as quantity_sold,
+            SUM(sti.total_price) as revenue
+        FROM sales_transaction_items sti
+        JOIN products p ON sti.product_id = p.id
+        JOIN sales_transactions st ON sti.transaction_id = st.id
+        WHERE DATE(st.transaction_date) = CURRENT_DATE
+        GROUP BY p.id, p.name
+        ORDER BY quantity_sold DESC
+        LIMIT %s
+        """
+        return self.execute_query(query, [limit])
+    
+    def get_recent_transactions(self, limit=10):
+        """Get recent transactions for today with formatted time and summary"""
+        query = """
+        SELECT 
+            TO_CHAR(st.transaction_date, 'HH24:MI') as time,
+            SUM(sti.quantity) as items,
+            st.total_amount as total
+        FROM sales_transactions st
+        JOIN sales_transaction_items sti ON st.id = sti.transaction_id
+        WHERE DATE(st.transaction_date) = CURRENT_DATE
+        GROUP BY st.id, st.transaction_date, st.total_amount
+        ORDER BY st.transaction_date DESC
+        LIMIT %s
+        """
+        return self.execute_query(query, [limit])
+    
+    def get_transaction_behavior(self, days=30):
+        """Analyze transaction behaviors without customer data"""
+        query = """
+        SELECT 
+            'All Transactions' as transaction_type,
+            COUNT(st.transaction_id) as transaction_count,
             AVG(st.total_amount) as avg_purchase_amount,
             SUM(st.total_amount) as total_spent,
-            COUNT(st.id) as total_transactions,
             AVG(transaction_items.items_per_transaction) as avg_items_per_transaction
         FROM sales_transactions st
-        LEFT JOIN customers c ON st.customer_id = c.id
         LEFT JOIN (
             SELECT 
                 transaction_id,
                 SUM(quantity) as items_per_transaction
             FROM sales_transaction_items
             GROUP BY transaction_id
-        ) transaction_items ON st.id = transaction_items.transaction_id
+        ) transaction_items ON st.transaction_id = transaction_items.transaction_id
         WHERE st.transaction_date >= %s
-        GROUP BY c.membership_type
+        GROUP BY 1
         ORDER BY total_spent DESC
         """
         
@@ -596,17 +626,15 @@ class SalesManagerAnalytics(BaseAnalytics):
             c.name as category,
             SUM(sti.quantity) as total_sold,
             SUM(sti.total_price) as total_revenue,
-            COUNT(DISTINCT st.customer_id) as unique_buyers,
-            AVG(sti.unit_price) as avg_selling_price,
-            p.cost_price,
-            (AVG(sti.unit_price) - p.cost_price) as profit_margin
+            COUNT(DISTINCT st.id) as total_transactions,
+            AVG(sti.unit_price) as avg_selling_price
         FROM sales_transaction_items sti
         JOIN products p ON sti.product_id = p.id
         JOIN categories c ON p.category_id = c.id
         JOIN sales_transactions st ON sti.transaction_id = st.id
         WHERE st.transaction_date >= %s
-        GROUP BY p.id, p.name, c.name, p.cost_price
-        ORDER BY total_sold DESC, profit_margin DESC
+        GROUP BY p.id, p.name, c.name
+        ORDER BY total_sold DESC
         LIMIT %s
         """
         
@@ -984,30 +1012,24 @@ class RestockerAnalytics(BaseAnalytics):
             category_id: Filter by specific category (optional)
         """
         
-        # Set default date ranges based on period type
         if not start_date or not end_date:
             today = datetime.now()
             
             if period_type == 'daily':
-                # Last 7 days
                 start_date = (today - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'weekly':
-                # Last 8 weeks
                 start_date = (today - timedelta(weeks=7)).replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'monthly':
-                # Last 12 months
                 start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                start_date = start_date - timedelta(days=365)  # Approximately 12 months
+                start_date = start_date - timedelta(days=365)  
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'quarterly':
-                # Last 4 quarters
                 start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                start_date = start_date - timedelta(days=365)  # Approximately 4 quarters
+                start_date = start_date - timedelta(days=365) 
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
         
-        # Build product/category filters
         product_filter = ""
         params = [start_date, end_date]
         
@@ -1031,7 +1053,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    COUNT(DISTINCT st.customer_id) as unique_customers
+                    
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1064,7 +1086,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    COUNT(DISTINCT st.customer_id) as unique_customers
+                    
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1097,7 +1119,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    COUNT(DISTINCT st.customer_id) as unique_customers
+                    
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1130,7 +1152,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    COUNT(DISTINCT st.customer_id) as unique_customers
+                    
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1168,7 +1190,7 @@ class RestockerAnalytics(BaseAnalytics):
                 COUNT(DISTINCT st.id) as total_transactions,
                 SUM(sti.total_price) as total_revenue,
                 AVG(st.total_amount) as avg_transaction_value,
-                COUNT(DISTINCT st.customer_id) as unique_customers,
+                
                 SUM(sti.quantity) as total_items_sold,
                 COUNT(DISTINCT sti.product_id) as unique_products_sold
             FROM sales_transactions st
@@ -1222,15 +1244,14 @@ class RestockerAnalytics(BaseAnalytics):
         CROSS JOIN growth_comparison gc
         """
         
-        # Calculate previous period start date
         period_length = end_date - start_date
         previous_start = start_date - period_length
         
         return self.execute_query(query, [
-            start_date, end_date,  # For sales_metrics CTE
-            start_date, end_date,  # For daily_averages CTE
-            start_date, end_date,  # For current_period in growth_comparison
-            previous_start, start_date  # For previous_period in growth_comparison
+            start_date, end_date,  
+            start_date, end_date,  
+            start_date, end_date, 
+            previous_start, start_date  
         ])
     
     def get_category_sales_trends(self, period_type='daily', start_date=None, end_date=None, limit=5):
@@ -1629,10 +1650,10 @@ class RestockerAnalytics(BaseAnalytics):
             df.projected_daily_demand DESC
         """
         
-        recent_period_start = datetime.now() - timedelta(days=14)  # Last 2 weeks
-        previous_period_start = datetime.now() - timedelta(days=28)  # Previous 2 weeks
+        recent_period_start = datetime.now() - timedelta(days=14)  
+        previous_period_start = datetime.now() - timedelta(days=28)  
         previous_period_end = datetime.now() - timedelta(days=14)
-        analysis_period_start = datetime.now() - timedelta(days=28)  # Total analysis period
+        analysis_period_start = datetime.now() - timedelta(days=28)  
         
         return self.execute_query(query, [
             recent_period_start, previous_period_start, previous_period_end, 
@@ -1870,94 +1891,12 @@ class RestockerAnalytics(BaseAnalytics):
             df.projected_daily_demand DESC
         """
         
-        recent_period_start = datetime.now() - timedelta(days=14)  # Last 2 weeks
-        previous_period_start = datetime.now() - timedelta(days=28)  # Previous 2 weeks
+        recent_period_start = datetime.now() - timedelta(days=14)  
+        previous_period_start = datetime.now() - timedelta(days=28)  
         previous_period_end = datetime.now() - timedelta(days=14)
-        analysis_period_start = datetime.now() - timedelta(days=28)  # Total analysis period
+        analysis_period_start = datetime.now() - timedelta(days=28)  
         
         return self.execute_query(query, [
             recent_period_start, previous_period_start, previous_period_end, 
             analysis_period_start, days_ahead, days_ahead, days_ahead
         ])
-    
-    def get_inventory_value_analysis(self):
-        """Get inventory value analysis by category"""
-        query = """
-        SELECT 
-            c.name as category,
-            COUNT(p.id) as total_products,
-            SUM(p.current_stock) as total_stock_units,
-            SUM(p.current_stock * p.cost_price) as total_inventory_value,
-            AVG(p.current_stock * p.cost_price) as avg_product_value,
-            SUM(CASE WHEN p.current_stock = 0 THEN 1 ELSE 0 END) as out_of_stock_count,
-            SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) as low_stock_count,
-            ROUND(
-                SUM(CASE WHEN p.current_stock <= p.reorder_level THEN 1 ELSE 0 END) * 100.0 / 
-                COUNT(p.id), 2
-            ) as low_stock_percentage
-        FROM categories c
-        JOIN products p ON c.id = p.category_id
-        WHERE p.is_active = TRUE
-        GROUP BY c.id, c.name
-        ORDER BY total_inventory_value DESC
-        """
-        
-        return self.execute_query(query)
-    
-    def get_supplier_performance_analysis(self):
-        """Get supplier performance analysis for restocking decisions"""
-        query = """
-        WITH supplier_movements AS (
-            SELECT 
-                s.id as supplier_id,
-                s.name as supplier_name,
-                s.contact_person,
-                s.phone,
-                COUNT(DISTINCT p.id) as products_supplied,
-                COUNT(CASE WHEN im.movement_type = 'inbound' THEN 1 END) as delivery_count,
-                SUM(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE 0 END) as total_delivered,
-                AVG(CASE WHEN im.movement_type = 'inbound' THEN im.quantity ELSE NULL END) as avg_delivery_size,
-                MAX(CASE WHEN im.movement_type = 'inbound' THEN im.movement_date ELSE NULL END) as last_delivery_date
-            FROM suppliers s
-            LEFT JOIN products p ON s.id = p.supplier_id
-            LEFT JOIN inventory_movements im ON p.id = im.product_id
-            WHERE s.is_active = TRUE
-            AND (im.movement_date >= %s OR im.movement_date IS NULL)
-            GROUP BY s.id, s.name, s.contact_person, s.phone
-        ),
-        supplier_stock_status AS (
-            SELECT 
-                s.id as supplier_id,
-                COUNT(CASE WHEN p.current_stock = 0 THEN 1 END) as out_of_stock_products,
-                COUNT(CASE WHEN p.current_stock <= p.reorder_level THEN 1 END) as low_stock_products,
-                SUM(p.current_stock * p.cost_price) as total_inventory_value
-            FROM suppliers s
-            LEFT JOIN products p ON s.id = p.supplier_id
-            WHERE s.is_active = TRUE AND p.is_active = TRUE
-            GROUP BY s.id
-        )
-        SELECT 
-            sm.*,
-            sss.out_of_stock_products,
-            sss.low_stock_products,
-            sss.total_inventory_value,
-            CASE 
-                WHEN sm.delivery_count >= 5 AND sss.low_stock_products <= 2 THEN 'EXCELLENT'
-                WHEN sm.delivery_count >= 3 AND sss.low_stock_products <= 5 THEN 'GOOD'
-                WHEN sm.delivery_count >= 1 OR sss.low_stock_products <= 8 THEN 'FAIR'
-                ELSE 'POOR'
-            END as performance_rating
-        FROM supplier_movements sm
-        LEFT JOIN supplier_stock_status sss ON sm.supplier_id = sss.supplier_id
-        ORDER BY 
-            CASE 
-                WHEN performance_rating = 'EXCELLENT' THEN 1
-                WHEN performance_rating = 'GOOD' THEN 2
-                WHEN performance_rating = 'FAIR' THEN 3
-                ELSE 4
-            END,
-            sm.total_delivered DESC
-        """
-        
-        thirty_days_ago = datetime.now() - timedelta(days=30)
-        return self.execute_query(query, [thirty_days_ago])

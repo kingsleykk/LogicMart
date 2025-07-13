@@ -206,7 +206,7 @@ class SalesTrend(SalesDataFrame):
         
         tk.Label(date_controls, text="From:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=0, padx=5)
+                fg=self.theme_colors['fg']).pack(side="left", padx=5)
         
         # Create DateEntry widget for start date
         today = datetime.now()
@@ -223,11 +223,11 @@ class SalesTrend(SalesDataFrame):
             month=default_start.month,
             day=default_start.day
         )
-        self.start_date_entry.grid(row=0, column=1, padx=5)
+        self.start_date_entry.pack(side="left", padx=5)
         
         tk.Label(date_controls, text="To:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=2, padx=5)
+                fg=self.theme_colors['fg']).pack(side="left", padx=5)
         
         # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
@@ -242,11 +242,11 @@ class SalesTrend(SalesDataFrame):
             month=today.month,
             day=today.day
         )
-        self.end_date_entry.grid(row=0, column=3, padx=5)
+        self.end_date_entry.pack(side="left", padx=5)
         
         tk.Button(date_controls, text="Apply", 
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
-                 font=("Segoe UI", 9), relief="flat", padx=10).grid(row=0, column=4, padx=10)
+                 font=("Segoe UI", 9), relief="flat", padx=10).pack(side="left", padx=10)
         
         # Initially disable custom date controls
         self.toggle_date_controls(False)
@@ -461,6 +461,11 @@ class RealTime(SalesDataFrame):
     def __init__(self, master):
         super().__init__(master, "Real Time Sales Dashboard")
         
+        # Add caching to prevent frequent changes
+        self.cached_data = None
+        self.cache_timestamp = None
+        self.cache_duration = 60  # Cache for 60 seconds
+        
         self.create_controls()
         self.load_data()
     
@@ -469,13 +474,59 @@ class RealTime(SalesDataFrame):
         control_frame = tk.Frame(self, bg=self.theme_colors['bg'], relief="solid", bd=1)
         control_frame.pack(fill="x", padx=20, pady=5)
         
-        # Manual refresh controls
-        refresh_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
-        refresh_frame.pack(side="left", padx=10, pady=5)
+        # Cache info
+        info_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
+        info_frame.pack(side="right", padx=10, pady=5)
         
-        tk.Button(refresh_frame, text="🔄 Refresh Now", 
-                 command=self.manual_refresh, bg="#3498db", fg="white",
-                 font=("Segoe UI", 9), relief="flat", padx=10).pack(side="left")
+        # Cache info label
+        self.cache_info_label = tk.Label(info_frame, text="", 
+                                        bg=self.theme_colors['bg'], fg="#666666",
+                                        font=("Segoe UI", 8))
+        self.cache_info_label.pack(side="right")
+    
+    def get_cached_data(self):
+        """Get cached data if still valid, otherwise fetch new data"""
+        current_time = datetime.now()
+        
+        # Check if cache is still valid
+        if (self.cached_data is not None and 
+            self.cache_timestamp is not None and 
+            (current_time - self.cache_timestamp).seconds < self.cache_duration):
+            
+            # Update cache info
+            seconds_old = (current_time - self.cache_timestamp).seconds
+            self.cache_info_label.config(text=f"Data cached ({seconds_old}s ago)")
+            return self.cached_data
+        
+        # Fetch new data and cache it
+        try:
+            df = self.analytics.get_real_time_sales_dashboard()
+            
+            # If no real data, return empty DataFrame to show helpful message
+            if df.empty:
+                print("No real dashboard data found for today")
+                self.cache_info_label.config(text="No sales data for today - run add_hourly_sales_data.py to add sample data")
+                return df
+            
+            self.cached_data = df
+            self.cache_timestamp = current_time
+            self.cache_info_label.config(text="Data refreshed")
+            return df
+        except Exception as e:
+            print(f"Error getting dashboard data: {e}")
+            if self.cached_data is not None:
+                self.cache_info_label.config(text="Using cached data (refresh failed)")
+                return self.cached_data
+            else:
+                # Return empty DataFrame to show helpful message
+                self.cache_info_label.config(text="Database connection failed")
+                return pd.DataFrame()
+    
+    def force_refresh(self):
+        """Force refresh by clearing cache"""
+        self.cached_data = None
+        self.cache_timestamp = None
+        self.load_data()
     
     def manual_refresh(self):
         """Manual refresh triggered by button"""
@@ -489,8 +540,8 @@ class RealTime(SalesDataFrame):
                 if isinstance(widget, tk.Frame) and widget not in [self.winfo_children()[0], self.winfo_children()[1]]:
                     widget.destroy()
             
-            # Get real-time data
-            df = self.analytics.get_real_time_sales_dashboard()
+            # Get real-time data (with caching)
+            df = self.get_cached_data()
             
             if not df.empty:
                 main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
@@ -506,13 +557,29 @@ class RealTime(SalesDataFrame):
                 self.create_recent_transactions(main_frame)
                 
             else:
-                # Show no data message
+                # Show no data message with instructions
                 no_data_frame = tk.Frame(self, bg=self.theme_colors['bg'])
                 no_data_frame.pack(fill="both", expand=True)
                 
-                tk.Label(no_data_frame, text="No sales data available for today", 
-                        font=("Segoe UI", 16), bg=self.theme_colors['bg'],
-                        fg=self.theme_colors['fg']).pack(expand=True)
+                # Center container
+                center_frame = tk.Frame(no_data_frame, bg=self.theme_colors['bg'])
+                center_frame.place(relx=0.5, rely=0.5, anchor="center")
+                
+                tk.Label(center_frame, text="📊 No Sales Data for Today", 
+                        font=("Segoe UI", 20, "bold"), bg=self.theme_colors['bg'],
+                        fg=self.theme_colors['fg']).pack(pady=10)
+                
+                tk.Label(center_frame, text="To see real-time sales data, you need to add some sales transactions.", 
+                        font=("Segoe UI", 12), bg=self.theme_colors['bg'],
+                        fg=self.theme_colors['fg']).pack(pady=5)
+                
+                tk.Label(center_frame, text="Run the script: add_hourly_sales_data.py", 
+                        font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'],
+                        fg="#e74c3c").pack(pady=5)
+                
+                tk.Label(center_frame, text="This will add sample hourly sales data for testing.", 
+                        font=("Segoe UI", 10), bg=self.theme_colors['bg'],
+                        fg=self.theme_colors['fg']).pack(pady=2)
                 
         except Exception as e:
             print(f"Error loading real-time dashboard data: {e}")
@@ -523,33 +590,17 @@ class RealTime(SalesDataFrame):
         metrics_frame = tk.Frame(parent, bg=self.theme_colors['bg'])
         metrics_frame.pack(fill="x", padx=20, pady=10)
         
-        # Row 1: Primary metrics
-        primary_metrics = [
-            ("Today's Revenue", f"${df.iloc[0]['todays_revenue']:.2f}", "#27ae60", "💰"),
-            ("Transactions", str(df.iloc[0]['todays_transactions']), "#3498db", "🛒"),
-            ("Avg Transaction", f"${df.iloc[0]['avg_transaction_value']:.2f}", "#f39c12", "📊"),
-            ("Unique Customers", str(df.iloc[0]['unique_customers']), "#e74c3c", "👥")
-        ]
+        # Add timestamp header if available
+        if 'data_timestamp' in df.columns:
+            timestamp_frame = tk.Frame(metrics_frame, bg=self.theme_colors['bg'])
+            timestamp_frame.pack(fill="x", pady=(0, 10))
+            
+            timestamp_str = str(df.iloc[0]['data_timestamp'])
+            tk.Label(timestamp_frame, text=f"📅 Data as of: {timestamp_str}", 
+                    font=("Segoe UI", 10), bg=self.theme_colors['bg'],
+                    fg="#666666").pack()
         
-        for i, (title, value, color, icon) in enumerate(primary_metrics):
-            card = tk.Frame(metrics_frame, bg=color, relief="raised", bd=2)
-            card.grid(row=0, column=i, padx=5, pady=5, sticky="ew")
-            metrics_frame.grid_columnconfigure(i, weight=1)
-            
-            # Icon and title
-            header_frame = tk.Frame(card, bg=color)
-            header_frame.pack(fill="x", pady=(10, 5))
-            
-            tk.Label(header_frame, text=icon, font=("Segoe UI", 14), 
-                    bg=color, fg="white").pack(side="left", padx=(10, 5))
-            tk.Label(header_frame, text=title, font=("Segoe UI", 10, "bold"), 
-                    bg=color, fg="white").pack(side="left")
-            
-            # Value
-            tk.Label(card, text=str(value), font=("Segoe UI", 18, "bold"), 
-                    bg=color, fg="white").pack(pady=(0, 10))
-        
-        # Row 2: Secondary metrics (if available)
+        # Secondary metrics (only if real data is available)
         try:
             secondary_data = self.get_secondary_metrics()
             if secondary_data:
@@ -559,14 +610,12 @@ class RealTime(SalesDataFrame):
                 secondary_metrics = [
                     ("Hourly Sales", f"${secondary_data.get('hourly_sales', 0):.2f}", "#9b59b6", "⏰"),
                     ("Items Sold", str(secondary_data.get('items_sold', 0)), "#1abc9c", "📦"),
-                    ("Conversion Rate", f"{secondary_data.get('conversion_rate', 0):.1f}%", "#34495e", "📈"),
                     ("Peak Hour", secondary_data.get('peak_hour', 'N/A'), "#e67e22", "🔥")
                 ]
                 
                 for i, (title, value, color, icon) in enumerate(secondary_metrics):
                     mini_card = tk.Frame(secondary_frame, bg=color, relief="raised", bd=1)
-                    mini_card.grid(row=0, column=i, padx=5, pady=5, sticky="ew")
-                    secondary_frame.grid_columnconfigure(i, weight=1)
+                    mini_card.pack(side="left", fill="both", expand=True, padx=5, pady=5)
                     
                     tk.Label(mini_card, text=f"{icon} {title}", font=("Segoe UI", 9, "bold"), 
                             bg=color, fg="white").pack(pady=(5, 2))
@@ -580,26 +629,23 @@ class RealTime(SalesDataFrame):
         try:
             # Try to get hourly data
             if hasattr(self.analytics, 'get_hourly_sales_data'):
-                hourly_data = self.analytics.get_hourly_sales_data()
-                if not hourly_data.empty:
-                    current_hour_sales = hourly_data.iloc[-1]['hourly_revenue'] if 'hourly_revenue' in hourly_data.columns else 0
-                    total_items = hourly_data['items_sold'].sum() if 'items_sold' in hourly_data.columns else 0
-                    peak_hour = hourly_data.loc[hourly_data['hourly_revenue'].idxmax(), 'hour'] if 'hourly_revenue' in hourly_data.columns else 'N/A'
-                    
-                    return {
-                        'hourly_sales': current_hour_sales,
-                        'items_sold': total_items,
-                        'conversion_rate': 85.5,  # Mock data
-                        'peak_hour': f"{peak_hour}:00"
-                    }
+                try:
+                    hourly_data = self.analytics.get_hourly_sales_data()
+                    if not hourly_data.empty:
+                        current_hour_sales = hourly_data.iloc[-1]['hourly_revenue'] if 'hourly_revenue' in hourly_data.columns else 0
+                        total_items = hourly_data['items_sold'].sum() if 'items_sold' in hourly_data.columns else 0
+                        peak_hour = hourly_data.loc[hourly_data['hourly_revenue'].idxmax(), 'hour'] if 'hourly_revenue' in hourly_data.columns else 'N/A'
+                        
+                        return {
+                            'hourly_sales': current_hour_sales,
+                            'items_sold': total_items,
+                            'peak_hour': f"{peak_hour}:00"
+                        }
+                except Exception as e:
+                    print(f"Error getting hourly data for metrics: {e}")
             
-            # Fallback to mock data
-            return {
-                'hourly_sales': 245.50,
-                'items_sold': 127,
-                'conversion_rate': 78.3,
-                'peak_hour': '14:00'
-            }
+            # Return None if no real data available
+            return None
         except Exception as e:
             print(f"Error getting secondary metrics: {e}")
             return None
@@ -626,17 +672,20 @@ class RealTime(SalesDataFrame):
         """Create hourly sales trend chart"""
         try:
             # Get hourly data or create sample data
+            hourly_df = pd.DataFrame()
+            
             if hasattr(self.analytics, 'get_hourly_sales_data'):
-                hourly_df = self.analytics.get_hourly_sales_data()
-            else:
-                # Create sample hourly data
-                hours = list(range(24))
-                revenues = [50 + 30 * np.sin(h * np.pi / 12) + np.random.normal(0, 10) for h in hours]
-                revenues = [max(0, r) for r in revenues]  # Ensure non-negative
-                hourly_df = pd.DataFrame({
-                    'hour': hours,
-                    'hourly_revenue': revenues
-                })
+                try:
+                    hourly_df = self.analytics.get_hourly_sales_data()
+                except Exception as e:
+                    print(f"Error getting hourly data from database: {e}")
+            
+            # If no real data available, show message to add data
+            if hourly_df.empty:
+                tk.Label(parent, text="No hourly sales data available for today.", 
+                        font=("Segoe UI", 12), bg=self.theme_colors['chart_bg'],
+                        justify="center").pack(expand=True)
+                return
             
             if not hourly_df.empty:
                 fig, ax = plt.subplots(figsize=(8, 4), facecolor=self.theme_colors['chart_bg'])
@@ -674,16 +723,14 @@ class RealTime(SalesDataFrame):
     def create_top_products_chart(self, parent):
         """Create top products chart for today"""
         try:
-            # Get today's top products
+            # Get today's top products - only from database
+            products_df = pd.DataFrame()
+            
             if hasattr(self.analytics, 'get_todays_top_products'):
-                products_df = self.analytics.get_todays_top_products(5)
-            else:
-                # Create sample data
-                products_df = pd.DataFrame({
-                    'product_name': ['Milk 1L', 'Bread', 'Coffee', 'Eggs', 'Butter'],
-                    'quantity_sold': [45, 38, 32, 28, 25],
-                    'revenue': [135.0, 76.0, 96.0, 84.0, 87.5]
-                })
+                try:
+                    products_df = self.analytics.get_todays_top_products(5)
+                except Exception as e:
+                    print(f"Error getting top products from database: {e}")
             
             if not products_df.empty:
                 fig, ax = plt.subplots(figsize=(8, 4), facecolor=self.theme_colors['chart_bg'])
@@ -709,8 +756,9 @@ class RealTime(SalesDataFrame):
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
             else:
-                tk.Label(parent, text="No product data available", 
-                        font=("Segoe UI", 12), bg=self.theme_colors['chart_bg']).pack(expand=True)
+                tk.Label(parent, text="No product sales data available for today.\nRun 'add_hourly_sales_data.py' to add sample data.", 
+                        font=("Segoe UI", 12), bg=self.theme_colors['chart_bg'],
+                        justify="center").pack(expand=True)
                 
         except Exception as e:
             print(f"Error creating top products chart: {e}")
@@ -726,17 +774,14 @@ class RealTime(SalesDataFrame):
                                              fg=self.theme_colors['fg'])
             transactions_frame.pack(fill="x", padx=20, pady=(10, 20))
             
-            # Get recent transactions
+            # Get recent transactions - only from database
+            recent_df = pd.DataFrame()
+            
             if hasattr(self.analytics, 'get_recent_transactions'):
-                recent_df = self.analytics.get_recent_transactions(10)
-            else:
-                # Create sample recent transactions
-                recent_df = pd.DataFrame({
-                    'time': ['14:23', '14:21', '14:18', '14:15', '14:12'],
-                    'customer_id': ['C001', 'C045', 'C023', 'C078', 'C012'],
-                    'items': [3, 1, 5, 2, 4],
-                    'total': [45.50, 12.99, 78.25, 23.40, 56.80]
-                })
+                try:
+                    recent_df = self.analytics.get_recent_transactions(10)
+                except Exception as e:
+                    print(f"Error getting recent transactions from database: {e}")
             
             if not recent_df.empty:
                 # Create table with custom styling
@@ -744,7 +789,7 @@ class RealTime(SalesDataFrame):
                 table_frame.pack(fill="x", padx=10, pady=10)
                 
                 # Headers
-                headers = ['Time', 'Customer', 'Items', 'Total']
+                headers = ['Time', 'Items', 'Total']
                 for i, header in enumerate(headers):
                     tk.Label(table_frame, text=header, font=("Segoe UI", 10, "bold"),
                             bg="#34495e", fg="white", relief="solid", bd=1).grid(
@@ -758,24 +803,21 @@ class RealTime(SalesDataFrame):
                             bg=bg_color, relief="solid", bd=1).grid(
                             row=row_idx, column=0, sticky="ew", padx=1, pady=1)
                     
-                    tk.Label(table_frame, text=row['customer_id'], font=("Segoe UI", 9),
+                    tk.Label(table_frame, text=str(row['items']), font=("Segoe UI", 9),
                             bg=bg_color, relief="solid", bd=1).grid(
                             row=row_idx, column=1, sticky="ew", padx=1, pady=1)
                     
-                    tk.Label(table_frame, text=str(row['items']), font=("Segoe UI", 9),
-                            bg=bg_color, relief="solid", bd=1).grid(
-                            row=row_idx, column=2, sticky="ew", padx=1, pady=1)
-                    
                     tk.Label(table_frame, text=f"${row['total']:.2f}", font=("Segoe UI", 9),
                             bg=bg_color, relief="solid", bd=1).grid(
-                            row=row_idx, column=3, sticky="ew", padx=1, pady=1)
+                            row=row_idx, column=2, sticky="ew", padx=1, pady=1)
                 
                 # Configure column weights
-                for i in range(4):
+                for i in range(3):
                     table_frame.grid_columnconfigure(i, weight=1)
             else:
-                tk.Label(transactions_frame, text="No recent transactions", 
-                        font=("Segoe UI", 10), bg=self.theme_colors['bg']).pack(pady=10)
+                tk.Label(transactions_frame, text="No recent transactions for today.\nRun 'add_hourly_sales_data.py' to add sample data.", 
+                        font=("Segoe UI", 10), bg=self.theme_colors['bg'],
+                        justify="center").pack(pady=10)
                 
         except Exception as e:
             print(f"Error creating recent transactions: {e}")
@@ -797,18 +839,6 @@ class RealTime(SalesDataFrame):
     def refresh_data(self):
         """Refresh the data display"""
         self.load_data()
-        """Export real-time dashboard report as PDF"""
-        try:
-            df = self.analytics.get_real_time_sales_dashboard()
-            if not df.empty:
-                from report_generator import SalesManagerReportGenerator
-                report_gen = SalesManagerReportGenerator()
-                report_gen.generate_sales_report({"dashboard": df}, 'pdf')
-            else:
-                messagebox.showwarning("No Data", "No dashboard data available for export")
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
-
 
 class PopularProduct(SalesDataFrame):
     def __init__(self, master):
@@ -902,7 +932,7 @@ class PopularProduct(SalesDataFrame):
         
         tk.Label(date_controls, text="From:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=0, padx=2)
+                fg=self.theme_colors['fg']).pack(side="left", padx=2)
         
         # Create DateEntry widget for start date
         today = datetime.now()
@@ -919,11 +949,11 @@ class PopularProduct(SalesDataFrame):
             month=default_start.month,
             day=default_start.day
         )
-        self.start_date_entry.grid(row=0, column=1, padx=2)
+        self.start_date_entry.pack(side="left", padx=2)
         
         tk.Label(date_controls, text="To:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=2, padx=2)
+                fg=self.theme_colors['fg']).pack(side="left", padx=2)
         
         # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
@@ -938,11 +968,11 @@ class PopularProduct(SalesDataFrame):
             month=today.month,
             day=today.day
         )
-        self.end_date_entry.grid(row=0, column=3, padx=2)
+        self.end_date_entry.pack(side="left", padx=2)
         
         tk.Button(date_controls, text="Apply", 
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
-                 font=("Segoe UI", 8), relief="flat", padx=8).grid(row=0, column=4, padx=5)
+                 font=("Segoe UI", 8), relief="flat", padx=8).pack(side="left", padx=5)
         
         # Initially disable custom date controls
         self.toggle_date_controls(False)
@@ -1192,51 +1222,67 @@ class PopularProduct(SalesDataFrame):
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
-                days = (end_date - start_date).days + 1
+                try:
+                    if hasattr(self.analytics, 'get_sales_trend_analysis_custom'):
+                        df = self.analytics.get_sales_trend_analysis_custom(start_date, end_date, self.metric_var.get())
+                    else:
+                        days = int(self.period_var.get())
+                        df = self.analytics.get_sales_trend_analysis(days, self.metric_var.get())
+                except:
+                    from analytics_engine import ManagerAnalytics
+                    ma = ManagerAnalytics()
+                    df = ma.get_sales_trend_analysis_custom(start_date, end_date, self.metric_var.get())
             else:
                 days = int(self.period_var.get())
-                start_date = None
-                end_date = None
-            
-            metric = self.metric_var.get()
-            category = self.category_var.get()
-            limit = int(self.limit_var.get())
-            
-            df = self.get_popular_products_data(days, metric, category, limit, start_date, end_date)
-            
+                try:
+                    df = self.analytics.get_sales_trend_analysis(days, self.metric_var.get())
+                except:
+                    from analytics_engine import ManagerAnalytics
+                    ma = ManagerAnalytics()
+                    df = ma.get_sales_trend_analysis(days, self.metric_var.get())
+                
             if not df.empty:
                 report_gen = SalesManagerReportGenerator()
-                report_gen.generate_sales_report({"popular_products": df}, 'pdf')
-                messagebox.showinfo("Export Success", "Popular products report exported to PDF successfully!")
+                data_sections = {"Sales Trend Analysis": df}
+                report_gen.generate_sales_report({"sales_trends": df}, 'pdf')
+                messagebox.showinfo("Export Success", "Sales trend report exported to PDF successfully!")
             else:
-                messagebox.showwarning("No Data", "No product data available for export")
+                messagebox.showwarning("No Data", "No sales data available for export")
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
     
     def export_excel(self):
-        """Export popular products data as Excel"""
+        """Export sales trend data as Excel"""
         try:
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
-                days = (end_date - start_date).days + 1
+                try:
+                    if hasattr(self.analytics, 'get_sales_trend_analysis_custom'):
+                        df = self.analytics.get_sales_trend_analysis_custom(start_date, end_date, self.metric_var.get())
+                    else:
+                        days = int(self.period_var.get())
+                        df = self.analytics.get_sales_trend_analysis(days, self.metric_var.get())
+                except:
+                    from analytics_engine import ManagerAnalytics
+                    ma = ManagerAnalytics()
+                    df = ma.get_sales_trend_analysis_custom(start_date, end_date, self.metric_var.get())
             else:
                 days = int(self.period_var.get())
-                start_date = None
-                end_date = None
-            
-            metric = self.metric_var.get()
-            category = self.category_var.get()
-            limit = int(self.limit_var.get())
-            
-            df = self.get_popular_products_data(days, metric, category, limit, start_date, end_date)
-            
+                try:
+                    df = self.analytics.get_sales_trend_analysis(days, self.metric_var.get())
+                except:
+                    from analytics_engine import ManagerAnalytics
+                    ma = ManagerAnalytics()
+                    df = ma.get_sales_trend_analysis(days, self.metric_var.get())
+                
             if not df.empty:
                 report_gen = SalesManagerReportGenerator()
-                report_gen.generate_sales_report({"popular_products": df}, 'excel')
-                messagebox.showinfo("Export Success", "Popular products data exported to Excel successfully!")
+                data_sections = {"Sales Trend Analysis": df}
+                report_gen.generate_sales_report({"sales_trends": df}, 'excel')
+                messagebox.showinfo("Export Success", "Sales trend data exported to Excel successfully!")
             else:
-                messagebox.showwarning("No Data", "No product data available for export")
+                messagebox.showwarning("No Data", "No sales data available for export")
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export Excel: {str(e)}")
     
@@ -1323,7 +1369,7 @@ class PromotionSales(SalesDataFrame):
         
         tk.Label(date_controls, text="From:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=0, padx=2)
+                fg=self.theme_colors['fg']).pack(side="left", padx=2)
         
         # Create DateEntry widget for start date
         today = datetime.now()
@@ -1340,11 +1386,11 @@ class PromotionSales(SalesDataFrame):
             month=default_start.month,
             day=default_start.day
         )
-        self.start_date_entry.grid(row=0, column=1, padx=2)
+        self.start_date_entry.pack(side="left", padx=2)
         
         tk.Label(date_controls, text="To:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=2, padx=2)
+                fg=self.theme_colors['fg']).pack(side="left", padx=2)
         
         # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
@@ -1359,11 +1405,11 @@ class PromotionSales(SalesDataFrame):
             month=today.month,
             day=today.day
         )
-        self.end_date_entry.grid(row=0, column=3, padx=2)
+        self.end_date_entry.pack(side="left", padx=2)
         
         tk.Button(date_controls, text="Apply", 
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
-                 font=("Segoe UI", 8), relief="flat", padx=8).grid(row=0, column=4, padx=5)
+                 font=("Segoe UI", 8), relief="flat", padx=8).pack(side="left", padx=5)
         
         # Initially disable custom date controls
         self.toggle_date_controls(False)
@@ -1486,6 +1532,7 @@ class PromotionSales(SalesDataFrame):
             if hasattr(self.analytics, 'get_seasonal_sales_trends'):
                 df = self.analytics.get_seasonal_sales_trends()
                 
+
                 if not df.empty:
                     # Convert month numbers to month names
                     month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -1644,8 +1691,7 @@ class PromotionSales(SalesDataFrame):
                 # Add value labels
                 for bar in bars:
                     height = bar.get_height()
-                    ax2.text(bar.get_x() + bar.get_width()/2., 
-                           height + (1 if height > 0 else -2),
+                    ax2.text(bar.get_x() + bar.get_width()/2., height,
                            f'{height:.1f}%', ha='center', 
                            va='bottom' if height > 0 else 'top', fontsize=9)
                 
@@ -1696,6 +1742,7 @@ class PromotionSales(SalesDataFrame):
                 ax1.set_title('Revenue by Campaign', fontsize=12, fontweight='bold')
                 ax1.tick_params(axis='x', rotation=45)
                 
+                # Add value labels on bars
                 for bar in bars1:
                     height = bar.get_height()
                     ax1.text(bar.get_x() + bar.get_width()/2., height,
@@ -1763,7 +1810,7 @@ class PromotionSales(SalesDataFrame):
                 ax1.set_title(f'{comparison_type.replace("_", " ").title()} Revenue Comparison', 
                              fontsize=14, fontweight='bold')
                 ax1.set_xticks(x)
-                ax1.set_xticklabels(df['period'], rotation=45 if len(df) > 4 else 0)
+                ax1.set_xticklabels(df['period'], rotation=45, ha='right')
                 ax1.legend()
                 ax1.grid(True, alpha=0.3, axis='y')
                 
@@ -1795,7 +1842,7 @@ class PromotionSales(SalesDataFrame):
                 ax2.set_title(f'{comparison_type.replace("_", " ").title()} Growth Analysis', 
                              fontsize=14, fontweight='bold')
                 ax2.set_xticks(range(len(df)))
-                ax2.set_xticklabels(df['period'], rotation=45 if len(df) > 4 else 0)
+                ax2.set_xticklabels(df['period'], rotation=45, ha='right')
                 ax2.grid(True, alpha=0.3, axis='y')
                 ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3)
                 
@@ -1934,7 +1981,7 @@ class CustomerBuyingBehavior(SalesDataFrame):
         
         tk.Label(date_controls, text="From:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=0, padx=2)
+                fg=self.theme_colors['fg']).pack(side="left", padx=2)
         
         # Create DateEntry widget for start date
         today = datetime.now()
@@ -1951,11 +1998,11 @@ class CustomerBuyingBehavior(SalesDataFrame):
             month=default_start.month,
             day=default_start.day
         )
-        self.start_date_entry.grid(row=0, column=1, padx=2)
+        self.start_date_entry.pack(side="left", padx=2)
         
         tk.Label(date_controls, text="To:", 
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
-                fg=self.theme_colors['fg']).grid(row=0, column=2, padx=2)
+                fg=self.theme_colors['fg']).pack(side="left", padx=2)
         
         # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
@@ -1970,11 +2017,11 @@ class CustomerBuyingBehavior(SalesDataFrame):
             month=today.month,
             day=today.day
         )
-        self.end_date_entry.grid(row=0, column=3, padx=2)
+        self.end_date_entry.pack(side="left", padx=2)
         
         tk.Button(date_controls, text="Apply", 
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
-                 font=("Segoe UI", 8), relief="flat", padx=8).grid(row=0, column=4, padx=5)
+                 font=("Segoe UI", 8), relief="flat", padx=8).pack(side="left", padx=5)
         
         # Initially disable custom date controls
         self.toggle_date_controls(False)
@@ -2101,69 +2148,40 @@ class CustomerBuyingBehavior(SalesDataFrame):
     def get_frequently_bought_together(self, days, start_date=None, end_date=None):
         """Get frequently bought together products using market basket analysis"""
         try:
-            # Use the analytics engine method if available
-            if hasattr(self.analytics, 'get_frequently_bought_together'):
-                if start_date and end_date:
-                    return self.analytics.get_frequently_bought_together_custom(start_date, end_date)
-                else:
-                    return self.analytics.get_frequently_bought_together(days)
+            # Use the analytics engine method
+            if start_date and end_date:
+                return self.analytics.get_frequently_bought_together_custom(start_date, end_date)
             else:
-                # Create sample data for demonstration
-                sample_df = pd.DataFrame({
-                    'product_a': ['Bread', 'Milk', 'Coffee', 'Eggs', 'Butter'],
-                    'product_b': ['Butter', 'Cereal', 'Sugar', 'Bacon', 'Jam'],
-                    'frequency': [25, 18, 15, 12, 10],
-                    'confidence': [0.83, 0.72, 0.68, 0.65, 0.58],
-                    'support': [0.15, 0.12, 0.10, 0.08, 0.06]
-                })
-                # Return all sample data without frequency filtering
-                return sample_df
+                return self.analytics.get_frequently_bought_together(days)
         except Exception as e:
             print(f"Error getting frequently bought together data: {e}")
+            # Return empty DataFrame if error occurs
             return pd.DataFrame()
     
     def get_category_performance(self, days, start_date=None, end_date=None):
         """Get category performance data"""
         try:
-            # Use the analytics engine method if available
-            if hasattr(self.analytics, 'get_category_performance'):
-                if start_date and end_date:
-                    return self.analytics.get_category_performance_custom(start_date, end_date)
-                else:
-                    return self.analytics.get_category_performance(days)
+            # Use the analytics engine method
+            if start_date and end_date:
+                return self.analytics.get_category_performance_custom(start_date, end_date)
             else:
-                # Create sample data for demonstration
-                return pd.DataFrame({
-                    'category': ['Dairy', 'Bakery', 'Produce', 'Meat', 'Beverages', 'Snacks'],
-                    'total_sales': [15250, 12800, 11200, 9800, 8500, 6200],
-                    'total_transactions': [890, 720, 650, 480, 420, 380],
-                    'avg_items_per_transaction': [2.1, 1.8, 3.2, 1.5, 2.0, 1.3],
-                    'revenue_percentage': [28.5, 24.0, 20.9, 18.3, 15.9, 11.6]
-                })
+                return self.analytics.get_category_performance(days)
         except Exception as e:
             print(f"Error getting category performance data: {e}")
+            # Return empty DataFrame if error occurs
             return pd.DataFrame()
     
     def get_avg_items_per_transaction(self, days, start_date=None, end_date=None):
         """Get average items per transaction over time"""
         try:
-            # Use the analytics engine method if available
-            if hasattr(self.analytics, 'get_avg_items_per_transaction'):
-                if start_date and end_date:
-                    return self.analytics.get_avg_items_per_transaction_custom(start_date, end_date)
-                else:
-                    return self.analytics.get_avg_items_per_transaction(days)
+            # Use the analytics engine method
+            if start_date and end_date:
+                return self.analytics.get_avg_items_per_transaction_custom(start_date, end_date)
             else:
-                # Create sample data for demonstration
-                dates = [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days-1, -1, -1)]
-                return pd.DataFrame({
-                    'date': dates,
-                    'avg_items': np.random.normal(2.5, 0.3, days).round(1),
-                    'total_transactions': np.random.randint(50, 150, days),
-                    'total_items': np.random.randint(120, 350, days)
-                })
+                return self.analytics.get_avg_items_per_transaction(days)
         except Exception as e:
             print(f"Error getting avg items per transaction data: {e}")
+            # Return empty DataFrame if error occurs
             return pd.DataFrame()
     
     def create_association_chart(self, df, parent_frame):
@@ -2502,8 +2520,11 @@ class SManagerPage(tk.Frame):
             pass
 
     def logout(self):
+        # Clear current user data
+        self.controller.set_current_user(None)
+        # Show login page (this will automatically restore the window size)
         self.controller.show_frame("LoginPage")
-        self.controller.title("Login Page")
+        self.controller.title("LogicMart Analytics System - Login")
 
     def clear_content(self):
         if self.current_content:

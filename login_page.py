@@ -29,17 +29,17 @@ class LoginPage(tk.Frame):
             messagebox.showerror("Login Failed", "Please enter both username and password")
             return
 
-        # Authenticate using PostgreSQL
+
         user_info = user_manager.authenticate_user(username, password)
         
         if user_info:
             self.current_user = user_info
             messagebox.showinfo("Login Successful", f"Welcome, {username}!")
             
-            # Store user info in the main controller
+
             self.controller.set_current_user(user_info)
             
-            # Navigate directly to appropriate dashboard based on role
+
             role = user_info['role']
             if role == "manager":
                 self.controller.show_frame("ManagerPage")
@@ -53,7 +53,7 @@ class LoginPage(tk.Frame):
     def logout(self):
         """Handle user logout"""
         self.current_user = None
-        self.controller.set_current_user(None)  # Clear user from controller
+        self.controller.set_current_user(None)  
         self.entry_username.delete(0, tk.END)
         self.entry_password.delete(0, tk.END)
         messagebox.showinfo("Logout", "You have been logged out successfully")
