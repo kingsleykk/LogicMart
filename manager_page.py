@@ -10,15 +10,11 @@ import seaborn as sns
 from tkcalendar import DateEntry
 from datetime import datetime, timedelta
 
-# Set matplotlib style
 plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
 
 class DataDisplayFrame(tk.Frame):
-    """Base class for displaying analytics data with tables and charts"""
-    
     def __init__(self, master, title):
-        # Use light theme colors
         self.theme_colors = {
             'bg': '#f0f0f0',
             'fg': '#333333',
@@ -41,17 +37,14 @@ class DataDisplayFrame(tk.Frame):
         self.create_header()
         
     def create_header(self):
-        """Create header with title and export buttons"""
         header_frame = tk.Frame(self, bg=self.theme_colors['bg'])
         header_frame.pack(fill="x", padx=20, pady=10)
         
-        # Title
         title_label = tk.Label(header_frame, text=self.title, 
                               font=("Segoe UI", 18, "bold"), 
                               bg=self.theme_colors['bg'], fg=self.theme_colors['fg'])
         title_label.pack(side="left")
         
-        # Export buttons
         export_frame = tk.Frame(header_frame, bg=self.theme_colors['bg'])
         export_frame.pack(side="right")
         
@@ -68,45 +61,36 @@ class DataDisplayFrame(tk.Frame):
                  font=("Segoe UI", 9), relief="flat", padx=10).pack(side="right", padx=5)
     
     def create_data_table(self, df, parent_frame):
-        """Create a scrollable data table"""
         if df.empty:
             tk.Label(parent_frame, text="No data available", 
                     font=("Segoe UI", 12), bg=self.theme_colors['bg'], 
                     fg=self.theme_colors['fg']).pack(pady=20)
             return
         
-        # Create main container for table with scrollbars
         table_container = tk.Frame(parent_frame, bg=self.theme_colors['bg'])
         table_container.pack(fill="both", expand=True, padx=10, pady=5)
         
-        # Create frame for tree and vertical scrollbar
         tree_frame = tk.Frame(table_container, bg=self.theme_colors['bg'])
         tree_frame.pack(fill="both", expand=True)
         
-        # Create treeview for table
         tree = ttk.Treeview(tree_frame)
         tree.pack(side="left", fill="both", expand=True)
         
-        # Vertical scrollbar
         v_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
         v_scrollbar.pack(side="right", fill="y")
         tree.configure(yscrollcommand=v_scrollbar.set)
         
-        # Horizontal scrollbar
         h_scrollbar = ttk.Scrollbar(table_container, orient="horizontal", command=tree.xview)
         h_scrollbar.pack(side="bottom", fill="x")
         tree.configure(xscrollcommand=h_scrollbar.set)
         
-        # Configure columns
         tree["columns"] = list(df.columns)
         tree["show"] = "headings"
         
         for col in df.columns:
             tree.heading(col, text=col.replace('_', ' ').title())
-            # Make columns wider to show more data
             tree.column(col, width=150, anchor="center")
         
-        # Insert data
         for index, row in df.iterrows():
             values = [str(val)[:100] + "..." if len(str(val)) > 100 else str(val) for val in row]
             tree.insert("", "end", values=values)
@@ -114,7 +98,6 @@ class DataDisplayFrame(tk.Frame):
         return tree
     
     def create_chart(self, df, chart_type="bar", x_col=None, y_col=None, figsize=(10, 5)):
-        """Create a matplotlib chart"""
         if df.empty:
             return None
             
@@ -131,14 +114,12 @@ class DataDisplayFrame(tk.Frame):
                 ax.set_xlabel(x_col.replace('_', ' ').title())
                 ax.set_ylabel(y_col.replace('_', ' ').title())
                 
-                # Add value labels on bars
                 for bar in bars:
                     height = bar.get_height()
                     ax.text(bar.get_x() + bar.get_width()/2., height,
                            f'{height:.1f}', ha='center', va='bottom', fontsize=9)
                            
             elif chart_type == "pie":
-                # Use first two columns for pie chart
                 labels = df.iloc[:, 0]
                 values = df.iloc[:, 1]
                 wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
@@ -155,39 +136,30 @@ class DataDisplayFrame(tk.Frame):
         return fig
     
     def export_pdf(self):
-        """Override in child classes"""
         messagebox.showinfo("Export", "PDF export functionality - override in child class")
     
     def export_excel(self):
-        """Override in child classes"""
         messagebox.showinfo("Export", "Excel export functionality - override in child class")
     
     def refresh_data(self):
-        """Override in child classes"""
-        messagebox.showinfo("Refresh", "Data refreshed!")
+        self.load_data()
 
 
 class SalesTrend(DataDisplayFrame):
     def __init__(self, master):
         super().__init__(master, "Sales Trend Analysis")
-        # Initialize filter variables
         self.period_var = tk.StringVar(value="30")
         self.use_custom_dates = tk.BooleanVar(value=False)
         self.metric_var = tk.StringVar(value="revenue")
-        
-        # Initialize DateEntry widgets - will be created in create_controls
         self.start_date_entry = None
         self.end_date_entry = None
-        
         self.create_controls()
         self.load_data()
     
     def create_controls(self):
-        """Create filter controls for sales trend analysis"""
         control_frame = tk.Frame(self, bg=self.theme_colors['bg'], relief="solid", bd=1)
         control_frame.pack(fill="x", padx=20, pady=5)
         
-        # Period selection
         period_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         period_frame.pack(side="left", padx=10, pady=10)
         
@@ -204,7 +176,6 @@ class SalesTrend(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
         
-        # Metric selection
         metric_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         metric_frame.pack(side="left", padx=20, pady=10)
         
@@ -217,7 +188,6 @@ class SalesTrend(DataDisplayFrame):
         metric_combo.pack(pady=2)
         metric_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
-        # Custom date selection
         date_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         date_frame.pack(side="left", padx=20, pady=10)
         
@@ -233,7 +203,6 @@ class SalesTrend(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).grid(row=0, column=0, padx=5)
         
-        # Create DateEntry widget for start date
         today = datetime.now()
         default_start = today - timedelta(days=30)
         self.start_date_entry = DateEntry(
@@ -254,7 +223,6 @@ class SalesTrend(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).grid(row=0, column=2, padx=5)
         
-        # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
             date_controls,
             width=12,
@@ -273,21 +241,17 @@ class SalesTrend(DataDisplayFrame):
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
                  font=("Segoe UI", 9), relief="flat", padx=10).grid(row=0, column=4, padx=10)
         
-        # Initially disable custom date controls
         self.toggle_date_controls(False)
     
     def toggle_date_controls(self, enabled):
-        """Enable/disable custom date controls"""
         state = "normal" if enabled else "disabled"
         self.start_date_entry.config(state=state)
         self.end_date_entry.config(state=state)
     
     def on_custom_date_toggle(self):
-        """Handle custom date checkbox toggle"""
         enabled = self.use_custom_dates.get()
         self.toggle_date_controls(enabled)
         if not enabled:
-            # Reset to default dates when unchecked
             today = datetime.now()
             default_start = today - timedelta(days=int(self.period_var.get()))
             self.start_date_entry.set_date(default_start)
@@ -295,26 +259,20 @@ class SalesTrend(DataDisplayFrame):
             self.load_data()
     
     def on_custom_date_apply(self):
-        """Apply custom date range"""
         if self.use_custom_dates.get():
             self.load_data()
     
     def on_filter_changed(self, event=None):
-        """Handle filter selection change"""
         if not self.use_custom_dates.get():
             self.load_data()
     
     def load_data(self):
-        """Load and display sales trend data with filters"""
         try:
-            # Clear existing content (except header and controls)
             for widget in self.winfo_children():
                 if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
                     widget.destroy()
             
-            # Get filter values
             if self.use_custom_dates.get():
-                # Use custom date range
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
                 days = (end_date - start_date).days + 1
@@ -325,23 +283,17 @@ class SalesTrend(DataDisplayFrame):
             
             metric = self.metric_var.get()
             
-            # Get sales trend data
             if start_date and end_date:
-                # Use custom date range
                 df = self.analytics.get_sales_trend_analysis_custom(start_date, end_date, metric)
             else:
-                # Use period in days
                 df = self.analytics.get_sales_trend_analysis(days, metric)
             
             if not df.empty:
-                # Convert date column to datetime for better plotting
                 df['date'] = pd.to_datetime(df['date'])
                 
-                # Create main container
                 main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
                 main_frame.pack(fill="both", expand=True)
                 
-                # Info panel
                 info_frame = tk.Frame(main_frame, bg=self.theme_colors['secondary_bg'], relief="solid", bd=1)
                 info_frame.pack(fill="x", padx=10, pady=5)
                 
@@ -354,11 +306,9 @@ class SalesTrend(DataDisplayFrame):
                         font=("Segoe UI", 11, "bold"), bg=self.theme_colors['secondary_bg'], 
                         fg=self.theme_colors['fg']).pack(pady=8)
                 
-                # Chart frame
                 chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
                 chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
                 
-                # Determine y column based on metric
                 y_column_map = {
                     "revenue": "daily_revenue",
                     "transactions": "transaction_count", 
@@ -366,14 +316,12 @@ class SalesTrend(DataDisplayFrame):
                 }
                 y_col = y_column_map.get(metric, "daily_revenue")
                 
-                # Create chart
                 fig = self.create_chart(df, "line", "date", y_col, figsize=(12, 6))
                 if fig:
                     canvas = FigureCanvasTkAgg(fig, chart_frame)
                     canvas.draw()
                     canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
                 
-                # Data table frame
                 table_frame = tk.LabelFrame(main_frame, text="Sales Data", 
                                            font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'],
                                            fg=self.theme_colors['fg'])
@@ -386,11 +334,9 @@ class SalesTrend(DataDisplayFrame):
                         font=("Segoe UI", 16), bg=self.theme_colors['bg'],
                         fg=self.theme_colors['fg']).pack(expand=True)
         except Exception as e:
-            print(f"Error loading sales trend data: {e}")
             messagebox.showerror("Error", f"Failed to load sales data: {str(e)}")
     
     def export_pdf(self):
-        """Export sales trend report as PDF"""
         try:
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
@@ -401,10 +347,7 @@ class SalesTrend(DataDisplayFrame):
                 df = self.analytics.get_sales_trend_analysis(days, self.metric_var.get())
                 
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
-                
-                # Create charts
                 charts = {}
                 if not df.empty:
                     df_chart = df.copy()
@@ -426,7 +369,6 @@ class SalesTrend(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
     
     def export_excel(self):
-        """Export sales trend data as Excel"""
         try:
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
@@ -437,7 +379,6 @@ class SalesTrend(DataDisplayFrame):
                 df = self.analytics.get_sales_trend_analysis(days, self.metric_var.get())
                 
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Sales Trend Analysis": df}
                 report_gen.generate_excel_report("Sales Trend Report", data_sections)
@@ -447,7 +388,6 @@ class SalesTrend(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export Excel: {str(e)}")
     
     def refresh_data(self):
-        """Refresh the data display"""
         self.load_data()
 
 
@@ -457,25 +397,21 @@ class CustomerTraffic(DataDisplayFrame):
         self.load_data()
     
     def load_data(self):
-        """Load and display customer traffic data"""
         df = self.analytics.get_peak_shopping_hours(7)
         
         if not df.empty:
             main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
             main_frame.pack(fill="both", expand=True)
             
-            # Chart frame
             chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
             chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
             
-            # Create chart
             fig = self.create_chart(df, "bar", "hour", "transaction_count", figsize=(12, 6))
             if fig:
                 canvas = FigureCanvasTkAgg(fig, chart_frame)
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
             
-            # Data table
             table_frame = tk.LabelFrame(main_frame, text="Traffic Data by Hour", 
                                        font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
             table_frame.pack(fill="both", expand=True, padx=10, pady=5)
@@ -486,14 +422,10 @@ class CustomerTraffic(DataDisplayFrame):
                     font=("Segoe UI", 16), bg="#f0f0f0").pack(expand=True)
     
     def export_pdf(self):
-        """Export customer traffic report as PDF"""
         try:
             df = self.analytics.get_peak_shopping_hours(7)
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
-                
-                # Create charts
                 charts = {}
                 chart_buffer = report_gen.create_chart(df, 'bar', 'Customer Traffic by Hour', 'hour', 'transaction_count')
                 charts['Traffic Chart'] = chart_buffer
@@ -506,11 +438,9 @@ class CustomerTraffic(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
     
     def export_excel(self):
-        """Export customer traffic data as Excel"""
         try:
             df = self.analytics.get_peak_shopping_hours(7)
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Customer Traffic by Hour": df}
                 report_gen.generate_excel_report("Customer Traffic Report", data_sections)
@@ -523,26 +453,20 @@ class CustomerTraffic(DataDisplayFrame):
 class TopSelling(DataDisplayFrame):
     def __init__(self, master):
         super().__init__(master, "Top Selling Products")
-        # Initialize filter variables
         self.period_var = tk.StringVar(value="30")
         self.limit_var = tk.StringVar(value="10")
         self.category_var = tk.StringVar(value="All Categories")
         self.sort_by_var = tk.StringVar(value="quantity")
         self.use_custom_dates = tk.BooleanVar(value=False)
-        
-        # Initialize DateEntry widgets - will be created in create_controls
         self.start_date_entry = None
         self.end_date_entry = None
-        
         self.create_controls()
         self.load_data()
     
     def create_controls(self):
-        """Create filter controls for top selling products"""
         control_frame = tk.Frame(self, bg=self.theme_colors['bg'], relief="solid", bd=1)
         control_frame.pack(fill="x", padx=20, pady=5)
         
-        # Period selection
         period_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         period_frame.pack(side="left", padx=10, pady=10)
         
@@ -559,7 +483,6 @@ class TopSelling(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
         
-        # Limit selection
         limit_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         limit_frame.pack(side="left", padx=10, pady=10)
         
@@ -576,7 +499,6 @@ class TopSelling(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
         
-        # Sort by selection
         sort_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         sort_frame.pack(side="left", padx=10, pady=10)
         
@@ -589,7 +511,6 @@ class TopSelling(DataDisplayFrame):
         sort_combo.pack(pady=2)
         sort_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
-        # Category filter
         category_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         category_frame.pack(side="left", padx=10, pady=10)
         
@@ -597,12 +518,10 @@ class TopSelling(DataDisplayFrame):
                 font=("Segoe UI", 10, "bold"), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
         
-        # Get categories from analytics (we'll populate this dynamically)
         self.category_combo = ttk.Combobox(category_frame, textvariable=self.category_var, width=15)
         self.category_combo.pack(pady=2)
         self.category_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
-        # Custom date selection
         date_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         date_frame.pack(side="right", padx=10, pady=10)
         
@@ -618,7 +537,6 @@ class TopSelling(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).grid(row=0, column=0, padx=2)
         
-        # Create DateEntry widget for start date
         today = datetime.now()
         default_start = today - timedelta(days=30)
         self.start_date_entry = DateEntry(
@@ -639,7 +557,6 @@ class TopSelling(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).grid(row=0, column=2, padx=2)
         
-        # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
             date_controls,
             width=10,
@@ -658,35 +575,27 @@ class TopSelling(DataDisplayFrame):
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
                  font=("Segoe UI", 8), relief="flat", padx=8).grid(row=0, column=4, padx=5)
         
-        # Initially disable custom date controls
         self.toggle_date_controls(False)
         
-        # Load categories
         self.load_categories()
     
     def load_categories(self):
-        """Load available categories for filtering"""
         try:
-            # Since get_product_categories doesn't exist, use fallback categories
             categories = ["Electronics", "Clothing", "Food & Beverages", "Home & Garden", "Sports & Outdoors"]
             category_list = ["All Categories"] + categories
             self.category_combo['values'] = category_list
         except Exception as e:
-            print(f"Error loading categories: {e}")
             self.category_combo['values'] = ["All Categories"]
     
     def toggle_date_controls(self, enabled):
-        """Enable/disable custom date controls"""
         state = "normal" if enabled else "disabled"
         self.start_date_entry.config(state=state)
         self.end_date_entry.config(state=state)
     
     def on_custom_date_toggle(self):
-        """Handle custom date checkbox toggle"""
         enabled = self.use_custom_dates.get()
         self.toggle_date_controls(enabled)
         if not enabled:
-            # Reset to default dates when unchecked
             today = datetime.now()
             default_start = today - timedelta(days=int(self.period_var.get()))
             self.start_date_entry.set_date(default_start)
@@ -694,24 +603,19 @@ class TopSelling(DataDisplayFrame):
             self.load_data()
     
     def on_custom_date_apply(self):
-        """Apply custom date range"""
         if self.use_custom_dates.get():
             self.load_data()
     
     def on_filter_changed(self, event=None):
-        """Handle filter selection change"""
         if not self.use_custom_dates.get():
             self.load_data()
     
     def load_data(self):
-        """Load and display top selling products with filters"""
         try:
-            # Clear existing content (except header and controls)
             for widget in self.winfo_children():
                 if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
                     widget.destroy()
             
-            # Get filter values
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
@@ -725,9 +629,7 @@ class TopSelling(DataDisplayFrame):
             category = self.category_var.get() if self.category_var.get() != "All Categories" else None
             sort_by = self.sort_by_var.get()
             
-            # Get top selling products data
             if start_date and end_date:
-                # Fallback to basic method for custom dates
                 df = self.analytics.get_top_selling_products(limit, days)
             else:
                 df = self.analytics.get_top_selling_products(limit, days)
@@ -736,7 +638,6 @@ class TopSelling(DataDisplayFrame):
                 main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
                 main_frame.pack(fill="both", expand=True)
                 
-                # Info panel
                 info_frame = tk.Frame(main_frame, bg=self.theme_colors['secondary_bg'], relief="solid", bd=1)
                 info_frame.pack(fill="x", padx=10, pady=5)
                 
@@ -754,14 +655,11 @@ class TopSelling(DataDisplayFrame):
                         font=("Segoe UI", 11, "bold"), bg=self.theme_colors['secondary_bg'], 
                         fg=self.theme_colors['fg']).pack(pady=8)
                 
-                # Chart frame
                 chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
                 chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
                 
-                # Create chart - show top 5 in chart
                 top_5 = df.head(5)
                 
-                # Determine y column based on sort_by
                 y_column_map = {
                     "quantity": "total_quantity_sold",
                     "revenue": "total_revenue",
@@ -775,7 +673,6 @@ class TopSelling(DataDisplayFrame):
                     canvas.draw()
                     canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
                 
-                # Data table
                 table_frame = tk.LabelFrame(main_frame, text="Top Selling Products Data", 
                                            font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'],
                                            fg=self.theme_colors['fg'])
@@ -787,11 +684,9 @@ class TopSelling(DataDisplayFrame):
                         font=("Segoe UI", 16), bg=self.theme_colors['bg'],
                         fg=self.theme_colors['fg']).pack(expand=True)
         except Exception as e:
-            print(f"Error loading top selling products: {e}")
             messagebox.showerror("Error", f"Failed to load product data: {str(e)}")
     
     def export_pdf(self):
-        """Export top selling products report as PDF"""
         try:
             if self.use_custom_dates.get():
                 df = self.analytics.get_top_selling_products(
@@ -803,10 +698,7 @@ class TopSelling(DataDisplayFrame):
                 )
                 
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
-                
-                # Create charts
                 charts = {}
                 top_5 = df.head(5)
                 y_column_map = {
@@ -826,7 +718,6 @@ class TopSelling(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
     
     def export_excel(self):
-        """Export top selling products data as Excel"""
         try:
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
@@ -840,7 +731,6 @@ class TopSelling(DataDisplayFrame):
                 )
                 
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Top Selling Products": df}
                 report_gen.generate_excel_report("Top Selling Products Report", data_sections)
@@ -850,7 +740,6 @@ class TopSelling(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export Excel: {str(e)}")
     
     def refresh_data(self):
-        """Refresh the data display"""
         self.load_data()
 
 
@@ -860,19 +749,16 @@ class InventoryUsage(DataDisplayFrame):
         self.load_data()
     
     def load_data(self):
-        """Load and display inventory data"""
         df = self.analytics.get_inventory_usage_trends()
         
         if not df.empty:
             main_frame = tk.Frame(self, bg="#f0f0f0")
             main_frame.pack(fill="both", expand=True)
             
-            # Summary stats frame
             stats_frame = tk.LabelFrame(main_frame, text="Inventory Summary", 
                                        font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
             stats_frame.pack(fill="x", padx=10, pady=5)
             
-            # Calculate summary statistics
             low_stock = len(df[df['stock_status'] == 'Low Stock'])
             medium_stock = len(df[df['stock_status'] == 'Medium Stock'])
             high_stock = len(df[df['stock_status'] == 'High Stock'])
@@ -881,7 +767,6 @@ class InventoryUsage(DataDisplayFrame):
             tk.Label(stats_frame, text=stats_text, font=("Segoe UI", 11), 
                     bg="#f0f0f0", fg="#e74c3c" if low_stock > 0 else "#27ae60").pack(pady=5)
             
-            # Data table
             table_frame = tk.LabelFrame(main_frame, text="Inventory Details", 
                                        font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
             table_frame.pack(fill="both", expand=True, padx=10, pady=5)
@@ -892,11 +777,9 @@ class InventoryUsage(DataDisplayFrame):
                     font=("Segoe UI", 16), bg="#f0f0f0").pack(expand=True)
     
     def export_pdf(self):
-        """Export inventory usage report as PDF"""
         try:
             df = self.analytics.get_inventory_usage_trends()
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Inventory Usage and Restock Insights": df}
                 report_gen.generate_pdf_report("Inventory Usage Report", data_sections)
@@ -906,11 +789,9 @@ class InventoryUsage(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
     
     def export_excel(self):
-        """Export inventory usage data as Excel"""
         try:
             df = self.analytics.get_inventory_usage_trends()
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Inventory Usage and Restock Insights": df}
                 report_gen.generate_excel_report("Inventory Usage Report", data_sections)
@@ -923,25 +804,19 @@ class InventoryUsage(DataDisplayFrame):
 class SalesForecast(DataDisplayFrame):
     def __init__(self, master):
         super().__init__(master, "Sales Forecast")
-        # Initialize filter variables
         self.period_var = tk.StringVar(value="30")
         self.forecast_type_var = tk.StringVar(value="moving_average")
         self.forecast_days_var = tk.StringVar(value="7")
         self.use_custom_dates = tk.BooleanVar(value=False)
-        
-        # Initialize DateEntry widgets - will be created in create_controls
         self.start_date_entry = None
         self.end_date_entry = None
-        
         self.create_controls()
         self.load_data()
     
     def create_controls(self):
-        """Create filter controls for sales forecast"""
         control_frame = tk.Frame(self, bg=self.theme_colors['bg'], relief="solid", bd=1)
         control_frame.pack(fill="x", padx=20, pady=5)
         
-        # Historical period selection
         period_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         period_frame.pack(side="left", padx=10, pady=10)
         
@@ -950,7 +825,7 @@ class SalesForecast(DataDisplayFrame):
                 fg=self.theme_colors['fg']).pack()
         
         period_combo = ttk.Combobox(period_frame, textvariable=self.period_var, 
-                                   values=["14", "30", "60", "90", "180", "365"], width=10)
+                                   values=["14", "30", "60"], width=10)
         period_combo.pack(pady=2)
         period_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
@@ -958,7 +833,6 @@ class SalesForecast(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
         
-        # Forecast type selection
         forecast_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         forecast_frame.pack(side="left", padx=10, pady=10)
         
@@ -967,11 +841,10 @@ class SalesForecast(DataDisplayFrame):
                 fg=self.theme_colors['fg']).pack()
         
         forecast_combo = ttk.Combobox(forecast_frame, textvariable=self.forecast_type_var, 
-                                     values=["moving_average", "linear_trend", "exponential"], width=15)
+                                     values=["moving_average", "exponential"], width=15)
         forecast_combo.pack(pady=2)
         forecast_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
-        # Forecast period selection
         forecast_days_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         forecast_days_frame.pack(side="left", padx=10, pady=10)
         
@@ -988,7 +861,6 @@ class SalesForecast(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
         
-        # Custom date selection
         date_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         date_frame.pack(side="right", padx=10, pady=10)
         
@@ -1004,7 +876,6 @@ class SalesForecast(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).grid(row=0, column=0, padx=2)
         
-        # Create DateEntry widget for start date
         today = datetime.now()
         default_start = today - timedelta(days=30)
         self.start_date_entry = DateEntry(
@@ -1025,7 +896,6 @@ class SalesForecast(DataDisplayFrame):
                 font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).grid(row=0, column=2, padx=2)
         
-        # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
             date_controls,
             width=10,
@@ -1044,21 +914,17 @@ class SalesForecast(DataDisplayFrame):
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
                  font=("Segoe UI", 8), relief="flat", padx=8).grid(row=0, column=4, padx=5)
         
-        # Initially disable custom date controls
         self.toggle_date_controls(False)
     
     def toggle_date_controls(self, enabled):
-        """Enable/disable custom date controls"""
         state = "normal" if enabled else "disabled"
         self.start_date_entry.config(state=state)
         self.end_date_entry.config(state=state)
     
     def on_custom_date_toggle(self):
-        """Handle custom date checkbox toggle"""
         enabled = self.use_custom_dates.get()
         self.toggle_date_controls(enabled)
         if not enabled:
-            # Reset to default dates when unchecked
             today = datetime.now()
             default_start = today - timedelta(days=int(self.period_var.get()))
             self.start_date_entry.set_date(default_start)
@@ -1066,24 +932,19 @@ class SalesForecast(DataDisplayFrame):
             self.load_data()
     
     def on_custom_date_apply(self):
-        """Apply custom date range"""
         if self.use_custom_dates.get():
             self.load_data()
     
     def on_filter_changed(self, event=None):
-        """Handle filter selection change"""
         if not self.use_custom_dates.get():
             self.load_data()
     
     def load_data(self):
-        """Load and display sales forecast with filters"""
         try:
-            # Clear existing content (except header and controls)
             for widget in self.winfo_children():
                 if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
                     widget.destroy()
             
-            # Get filter values
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
@@ -1096,35 +957,29 @@ class SalesForecast(DataDisplayFrame):
             forecast_type = self.forecast_type_var.get()
             forecast_days = int(self.forecast_days_var.get())
             
-            # Get sales forecast data
             if start_date and end_date:
-                df = self.analytics.get_sales_forecast_data(30)
+                df = self.analytics.get_sales_forecast_data(days)
             else:
                 df = self.analytics.get_sales_forecast_data(days)
             
-            if not df.empty and len(df) >= 7:  # Need at least 7 days for basic forecast
-                # Convert date column to datetime for better plotting
+            if not df.empty and len(df) >= 7:
                 df['date'] = pd.to_datetime(df['date'])
                 df = df.sort_values('date')
                 
-                # Calculate forecast based on type
                 if forecast_type == "moving_average":
                     window = min(7, len(df))
                     df['forecast'] = df['daily_revenue'].rolling(window=window).mean()
                 elif forecast_type == "linear_trend":
-                    # Simple linear trend calculation
                     df['day_num'] = range(len(df))
                     slope = (df['daily_revenue'].iloc[-1] - df['daily_revenue'].iloc[0]) / len(df)
                     df['forecast'] = df['daily_revenue'].iloc[0] + slope * df['day_num']
                 elif forecast_type == "exponential":
-                    # Simple exponential smoothing
                     alpha = 0.3
                     df['forecast'] = df['daily_revenue'].ewm(alpha=alpha).mean()
                 
                 main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
                 main_frame.pack(fill="both", expand=True)
                 
-                # Info panel
                 info_frame = tk.Frame(main_frame, bg=self.theme_colors['secondary_bg'], relief="solid", bd=1)
                 info_frame.pack(fill="x", padx=10, pady=5)
                 
@@ -1139,53 +994,42 @@ class SalesForecast(DataDisplayFrame):
                         font=("Segoe UI", 11, "bold"), bg=self.theme_colors['secondary_bg'], 
                         fg=self.theme_colors['fg']).pack(pady=8)
                 
-                # Chart frame
                 chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
                 chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
                 
-                # Create forecast chart with enhanced algorithms
                 fig, ax = plt.subplots(figsize=(12, 6), facecolor=self.theme_colors['chart_bg'])
                 
-                # Calculate moving average forecast (more sophisticated)
                 window_size = min(7, len(df) // 2)
                 df['moving_avg'] = df['daily_revenue'].rolling(window=window_size, min_periods=1).mean()
                 
-                # Calculate different forecast types
                 if forecast_type == "moving_average":
                     df['forecast'] = df['moving_avg']
                 elif forecast_type == "linear_trend":
-                    # Use linear regression for trend
                     x = np.arange(len(df))
                     y = df['daily_revenue'].values
                     z = np.polyfit(x, y, 1)
                     p = np.poly1d(z)
                     df['forecast'] = p(x)
                 elif forecast_type == "exponential":
-                    # Exponential smoothing
                     alpha = 0.3
                     df['forecast'] = df['daily_revenue'].ewm(alpha=alpha, adjust=False).mean()
                 else:
                     df['forecast'] = df['moving_avg']
                 
-                # Plot historical data
                 ax.plot(df['date'], df['daily_revenue'], label='Actual Revenue', marker='o', linewidth=2, alpha=0.8, color='#3498db')
                 ax.plot(df['date'], df['forecast'], label=f'{forecast_type.replace("_", " ").title()} Forecast', 
                        linestyle='--', linewidth=2, alpha=0.8, color='#27ae60')
                 
-                # Generate future dates for forecast
                 last_date = df['date'].iloc[-1]
                 future_dates = [last_date + timedelta(days=i+1) for i in range(forecast_days)]
                 
-                # Enhanced future forecast algorithms
                 if forecast_type == "moving_average":
-                    # Use recent trend instead of flat line
                     recent_values = df['daily_revenue'].tail(window_size).values
                     recent_trend = np.mean(np.diff(recent_values)) if len(recent_values) > 1 else 0
                     base_value = df['forecast'].iloc[-1]
                     future_values = [base_value + recent_trend * (i+1) for i in range(forecast_days)]
                     
                 elif forecast_type == "linear_trend":
-                    # Extend the linear trend
                     x = np.arange(len(df))
                     y = df['daily_revenue'].values
                     z = np.polyfit(x, y, 1)
@@ -1194,11 +1038,10 @@ class SalesForecast(DataDisplayFrame):
                     future_values = p(future_x)
                     
                 elif forecast_type == "exponential":
-                    # Exponential smoothing with trend
                     last_values = df['daily_revenue'].tail(10).values
                     if len(last_values) > 1:
                         recent_growth = np.mean(np.diff(last_values)) / np.mean(last_values[:-1])
-                        recent_growth = max(-0.1, min(0.1, recent_growth))  # Cap growth rate
+                        recent_growth = max(-0.1, min(0.1, recent_growth))
                     else:
                         recent_growth = 0.01
                     
@@ -1207,10 +1050,9 @@ class SalesForecast(DataDisplayFrame):
                     current_value = last_forecast
                     for i in range(forecast_days):
                         current_value = current_value * (1 + recent_growth) + np.random.normal(0, current_value * 0.05)
-                        future_values.append(max(0, current_value))  # Ensure non-negative
+                        future_values.append(max(0, current_value))
                 
-                # Add some realistic variability to future forecasts
-                np.random.seed(42)  # For reproducible results
+                np.random.seed(42)
                 variability = np.std(df['daily_revenue']) * 0.1
                 future_values = [max(0, val + np.random.normal(0, variability)) for val in future_values]
                 
@@ -1229,7 +1071,6 @@ class SalesForecast(DataDisplayFrame):
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
                 
-                # Statistics
                 stats_frame = tk.LabelFrame(main_frame, text="Forecast Statistics", 
                                            font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'],
                                            fg=self.theme_colors['fg'])
@@ -1239,11 +1080,9 @@ class SalesForecast(DataDisplayFrame):
                 forecast_avg = df['forecast'].iloc[-7:].mean() if len(df) >= 7 else df['forecast'].mean()
                 trend = "Increasing" if forecast_avg > avg_revenue else "Decreasing"
                 
-                # Calculate accuracy metrics
                 mae = abs(df['daily_revenue'] - df['forecast']).mean()
                 accuracy = max(0, 100 - (mae / avg_revenue * 100)) if avg_revenue > 0 else 0
                 
-                # Future forecast statistics
                 future_avg = sum(future_values) / len(future_values) if future_values else 0
                 future_trend = "Increasing" if future_avg > forecast_avg else "Decreasing"
                 
@@ -1260,11 +1099,9 @@ class SalesForecast(DataDisplayFrame):
                         font=("Segoe UI", 16), bg=self.theme_colors['bg'],
                         fg=self.theme_colors['fg']).pack(expand=True)
         except Exception as e:
-            print(f"Error loading sales forecast: {e}")
             messagebox.showerror("Error", f"Failed to load forecast data: {str(e)}")
     
     def export_pdf(self):
-        """Export sales forecast report as PDF"""
         try:
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
@@ -1276,7 +1113,6 @@ class SalesForecast(DataDisplayFrame):
                 )
                 
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Sales Forecast Data": df}
                 report_gen.generate_pdf_report("Sales Forecast Report", data_sections)
@@ -1286,7 +1122,6 @@ class SalesForecast(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
     
     def export_excel(self):
-        """Export sales forecast data as Excel"""
         try:
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
@@ -1298,7 +1133,6 @@ class SalesForecast(DataDisplayFrame):
                 )
                 
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Sales Forecast Data": df}
                 report_gen.generate_excel_report("Sales Forecast Report", data_sections)
@@ -1308,7 +1142,6 @@ class SalesForecast(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export Excel: {str(e)}")
     
     def refresh_data(self):
-        """Refresh the data display"""
         self.load_data()
 
 
@@ -1321,21 +1154,12 @@ class ManagerPage(tk.Frame):
         self.sidebar_expand = False
         self.separators = []
         
-        # Use light theme colors
         self.theme_colors = {
-            'bg': '#f0f0f0',
-            'fg': '#333333',
-            'secondary_bg': '#ffffff',
-            'accent': '#4a90e2',
-            'button_bg': '#e0e0e0',
-            'button_fg': '#333333',
-            'entry_bg': '#ffffff',
-            'entry_fg': '#333333',
-            'sidebar_bg': '#2c3e50',
-            'chart_bg': 'white',
-            'chart_colors': ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#8B5A3C', '#006D77'],
-            'grid_color': '#cccccc',
-            'text_color': 'black'
+            'bg': '#f0f0f0', 'fg': '#333333', 'secondary_bg': '#ffffff',
+            'accent': '#4a90e2', 'button_bg': '#e0e0e0', 'button_fg': '#333333',
+            'entry_bg': '#ffffff', 'entry_fg': '#333333', 'sidebar_bg': '#2c3e50',
+            'chart_bg': 'white', 'chart_colors': ['#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#8B5A3C', '#006D77'],
+            'grid_color': '#cccccc', 'text_color': 'black'
         }
         self.configure(bg=self.theme_colors['bg'])
 
@@ -1394,26 +1218,20 @@ class ManagerPage(tk.Frame):
 
         self.current_content = None
         
-        # Show welcome message by default
         self.show_welcome()
 
     def show_welcome(self):
-        """Display welcome message for the logged-in user"""
         self.clear_content()
         
-        # Create welcome frame
         welcome_frame = tk.Frame(self.content, bg=self.theme_colors['bg'])
         welcome_frame.pack(fill="both", expand=True)
         
-        # Center container
         center_frame = tk.Frame(welcome_frame, bg=self.theme_colors['bg'])
         center_frame.place(relx=0.5, rely=0.5, anchor="center")
         
-        # Get current user info
         current_user = self.controller.get_current_user()
         username = current_user.get('username', 'Manager') if current_user else 'Manager'
         
-        # Welcome message
         welcome_label = tk.Label(center_frame, 
                                 text=f"Welcome {username}",
                                 font=("Segoe UI", 28, "bold"),
@@ -1421,7 +1239,6 @@ class ManagerPage(tk.Frame):
                                 bg=self.theme_colors['bg'])
         welcome_label.pack(pady=20)
         
-        # Subtitle
         subtitle_label = tk.Label(center_frame,
                                  text="LogicMart Analytics Dashboard",
                                  font=("Segoe UI", 16),
@@ -1429,7 +1246,6 @@ class ManagerPage(tk.Frame):
                                  bg=self.theme_colors['bg'])
         subtitle_label.pack(pady=10)
         
-        # Instructions
         instructions_label = tk.Label(center_frame,
                                      text="Use the menu on the left to access different analytics and reports",
                                      font=("Segoe UI", 12),
@@ -1461,7 +1277,6 @@ class ManagerPage(tk.Frame):
             self.toggle_button.config(text="<", anchor="e", font=("Segoe UI", 14, "bold"), padx=20,)
             self.logout_button.pack(side="bottom", fill="x", pady=(10, 20), padx=20)
             
-            # MANAGER
             role_header = tk.Label(self.sidebar, text="MANAGER", 
                                   bg="#34495e", fg="#ecf0f1", font=("Segoe UI", 11, "bold"),
                                   anchor="center", pady=8)
@@ -1496,9 +1311,7 @@ class ManagerPage(tk.Frame):
             pass
 
     def logout(self):
-        # Clear current user data
         self.controller.set_current_user(None)
-        # Show login page (this will automatically restore the window size)
         self.controller.show_frame("LoginPage")
         self.controller.title("LogicMart Analytics System - Login")
 
@@ -1555,7 +1368,6 @@ class ProductSalesTrends(DataDisplayFrame):
         self.load_data()
     
     def create_controls(self):
-        """Create control panel for time period selection"""
         control_frame = tk.Frame(self, bg=self.theme_colors['bg'])
         control_frame.pack(fill="x", padx=20, pady=5)
         
@@ -1573,33 +1385,28 @@ class ProductSalesTrends(DataDisplayFrame):
                 fg=self.theme_colors['fg']).pack(side="left")
     
     def on_period_changed(self, event=None):
-        """Handle period selection change"""
         self.load_data()
     
     def load_data(self):
-        """Load and display product sales trends data"""
         try:
             days = int(self.period_var.get())
             df = self.analytics.get_product_sales_trends(days=days, limit=10)
             
+            for widget in self.winfo_children():
+                if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
+                    widget.destroy()
+            
             if not df.empty:
-                # Clear existing content
-                for widget in self.winfo_children():
-                    if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
-                        widget.destroy()
-                
                 main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
                 main_frame.pack(fill="both", expand=True)
                 
-                # Create charts for top products
-                products = df['product_name'].unique()[:5]  # Top 5 products
+                products = df['product_name'].unique()[:5]
                 
                 chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
                 chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
                 
                 fig, axes = plt.subplots(2, 1, figsize=(14, 10), facecolor='white')
                 
-                # Chart 1: Daily quantity trends for top products
                 for i, product in enumerate(products):
                     product_data = df[df['product_name'] == product].copy()
                     if not product_data.empty:
@@ -1614,7 +1421,6 @@ class ProductSalesTrends(DataDisplayFrame):
                 axes[0].grid(True, alpha=0.3)
                 axes[0].tick_params(axis='x', rotation=45)
                 
-                # Chart 2: Daily revenue trends for top products
                 for i, product in enumerate(products):
                     product_data = df[df['product_name'] == product].copy()
                     if not product_data.empty:
@@ -1635,12 +1441,10 @@ class ProductSalesTrends(DataDisplayFrame):
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
                 
-                # Summary table
                 summary_frame = tk.LabelFrame(main_frame, text="Product Performance Summary", 
                                             font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
                 summary_frame.pack(fill="both", expand=True, padx=10, pady=5)
                 
-                # Create summary data
                 summary_df = df.groupby(['product_name', 'category']).agg({
                     'total_quantity': 'first',
                     'avg_daily_quantity': 'first',
@@ -1652,17 +1456,15 @@ class ProductSalesTrends(DataDisplayFrame):
                 tk.Label(self, text="No sales data available for the selected period", 
                         font=("Segoe UI", 16), bg="#f0f0f0").pack(expand=True)
         except Exception as e:
-            print(f"Error loading product sales trends: {e}")
             messagebox.showerror("Error", f"Failed to load sales trends data: {str(e)}")
     
     def export_pdf(self):
-        """Export product sales trends to PDF"""
         try:
             days = int(self.period_var.get())
             df = self.analytics.get_product_sales_trends(days=days, limit=10)
             if not df.empty:
                 report_gen = ManagerReportGenerator()
-                report_gen.generate_comprehensive_report({"top_products": df}, 'pdf')
+                report_gen.generate_comprehensive_report({"product_trends": df}, 'pdf')
                 messagebox.showinfo("Export Success", "Product sales trends exported to PDF successfully!")
             else:
                 messagebox.showwarning("No Data", "No data available to export")
@@ -1670,13 +1472,12 @@ class ProductSalesTrends(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
     
     def export_excel(self):
-        """Export product sales trends to Excel"""
         try:
             days = int(self.period_var.get())
             df = self.analytics.get_product_sales_trends(days=days, limit=10)
             if not df.empty:
                 report_gen = ManagerReportGenerator()
-                report_gen.generate_comprehensive_report({"top_products": df}, 'excel')
+                report_gen.generate_comprehensive_report({"product_trends": df}, 'excel')
                 messagebox.showinfo("Export Success", "Product sales trends exported to Excel successfully!")
             else:
                 messagebox.showwarning("No Data", "No data available to export")
@@ -1684,56 +1485,40 @@ class ProductSalesTrends(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
     
     def refresh_data(self):
-        """Refresh the data display"""
         self.load_data()
 
 
 class CustomerTrafficAnalysis(DataDisplayFrame):
     def __init__(self, master):
         super().__init__(master, "Customer Traffic Analysis")
-        self.period_type_var = tk.StringVar(value="day")
+        self.period_var = tk.StringVar(value="7")
         self.use_custom_dates = tk.BooleanVar(value=False)
-        self.data_history = {}  # Store data for overlapping charts
-        
-        # Initialize DateEntry widgets - will be created in create_controls
+        self.data_history = {}
         self.start_date_entry = None
         self.end_date_entry = None
-        
         self.create_controls()
         self.load_data()
     
     def create_controls(self):
-        """Create control panel for time period and date selection"""
         control_frame = tk.Frame(self, bg=self.theme_colors['bg'], relief="solid", bd=1)
         control_frame.pack(fill="x", padx=20, pady=5)
         
-        # Period type selection - simplified
         period_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         period_frame.pack(side="left", padx=10, pady=10)
-        
+
         tk.Label(period_frame, text="Time Period:", 
                 font=("Segoe UI", 10, "bold"), bg=self.theme_colors['bg'], 
                 fg=self.theme_colors['fg']).pack()
+
+        period_combo = ttk.Combobox(period_frame, textvariable=self.period_var, 
+                                values=["7", "14", "30", "60", "90"], width=10, state="readonly")
+        period_combo.pack(pady=2)
+        period_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
+
+        tk.Label(period_frame, text="Days", 
+                font=("Segoe UI", 9), bg=self.theme_colors['bg'], 
+                fg=self.theme_colors['fg']).pack()
         
-        # Simplified period options with clear descriptions
-        period_descriptions = [
-            ("hour", "24 Hours"),
-            ("day", "7 Days"),
-            ("week", "4 Weeks"),
-            ("month", "8 Weeks")
-        ]
-        
-        period_button_frame = tk.Frame(period_frame, bg="#f0f0f0")
-        period_button_frame.pack()
-        
-        for period, desc in period_descriptions:
-            btn = tk.Radiobutton(period_button_frame, text=desc, 
-                               variable=self.period_type_var, value=period,
-                               command=self.on_period_changed, bg=self.theme_colors['bg'],
-                               fg=self.theme_colors['fg'], font=("Segoe UI", 9))
-            btn.pack(side="left", padx=5)
-        
-        # Custom date selection
         date_frame = tk.Frame(control_frame, bg=self.theme_colors['bg'])
         date_frame.pack(side="left", padx=20, pady=10)
         
@@ -1748,38 +1533,22 @@ class CustomerTrafficAnalysis(DataDisplayFrame):
         tk.Label(date_controls, text="From:", 
                 font=("Segoe UI", 9), bg="#f0f0f0").grid(row=0, column=0, padx=5)
         
-        # Create DateEntry widget for start date
         today = datetime.now()
         default_start = today - timedelta(days=7)
         self.start_date_entry = DateEntry(
-            date_controls,
-            width=12,
-            background='darkblue',
-            foreground='white',
-            borderwidth=2,
-            date_pattern='yyyy-mm-dd',
-            font=("Segoe UI", 9),
-            year=default_start.year,
-            month=default_start.month,
-            day=default_start.day
+            date_controls, width=12, background='darkblue', foreground='white',
+            borderwidth=2, date_pattern='yyyy-mm-dd', font=("Segoe UI", 9),
+            year=default_start.year, month=default_start.month, day=default_start.day
         )
         self.start_date_entry.grid(row=0, column=1, padx=5)
         
         tk.Label(date_controls, text="To:", 
                 font=("Segoe UI", 9), bg="#f0f0f0").grid(row=0, column=2, padx=5)
         
-        # Create DateEntry widget for end date
         self.end_date_entry = DateEntry(
-            date_controls,
-            width=12,
-            background='darkblue',
-            foreground='white',
-            borderwidth=2,
-            date_pattern='yyyy-mm-dd',
-            font=("Segoe UI", 9),
-            year=today.year,
-            month=today.month,
-            day=today.day
+            date_controls, width=12, background='darkblue', foreground='white',
+            borderwidth=2, date_pattern='yyyy-mm-dd', font=("Segoe UI", 9),
+            year=today.year, month=today.month, day=today.day
         )
         self.end_date_entry.grid(row=0, column=3, padx=5)
         
@@ -1787,10 +1556,8 @@ class CustomerTrafficAnalysis(DataDisplayFrame):
                  command=self.on_custom_date_apply, bg="#3498db", fg="white",
                  font=("Segoe UI", 9), relief="flat", padx=10).grid(row=0, column=4, padx=10)
         
-        # Initially disable custom date controls
         self.toggle_date_controls(False)
         
-        # Chart history controls
         history_frame = tk.Frame(control_frame, bg="#f0f0f0")
         history_frame.pack(side="right", padx=10, pady=10)
         
@@ -1803,463 +1570,193 @@ class CustomerTrafficAnalysis(DataDisplayFrame):
                  font=("Segoe UI", 9), relief="flat", padx=10).pack(side="top", pady=(5,0))
     
     def toggle_date_controls(self, enabled):
-        """Enable/disable custom date controls"""
         state = "normal" if enabled else "disabled"
         self.start_date_entry.config(state=state)
         self.end_date_entry.config(state=state)
     
     def on_custom_date_toggle(self):
-        """Handle custom date checkbox toggle"""
         enabled = self.use_custom_dates.get()
         self.toggle_date_controls(enabled)
         if not enabled:
-            # Reset to default dates when unchecked
-            today = datetime.now()
-            default_start = today - timedelta(days=7)
-            self.start_date_entry.set_date(default_start)
-            self.end_date_entry.set_date(today)
             self.load_data()
     
     def on_custom_date_apply(self):
-        """Apply custom date range"""
         if self.use_custom_dates.get():
             self.load_data()
     
-    def on_period_changed(self):
-        """Handle period type change"""
+    def on_filter_changed(self, event=None):
         if not self.use_custom_dates.get():
             self.load_data()
     
     def add_to_history(self):
-        """Add current data to history for overlapping charts"""
-        period_type = self.period_type_var.get()
-        
+        start_date, end_date = None, None
+        if self.use_custom_dates.get():
+            start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
+            end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
+            period_type = 'day'
+        else:
+            days = int(self.period_var.get())
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+
+            if days <= 2:
+                period_type = 'hour'
+            elif days <= 90:
+                period_type = 'day'
+            else:
+                period_type = 'week'
         if hasattr(self, 'current_df') and not self.current_df.empty:
-            # Generate a unique key for this dataset
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
-                start_str = start_date.strftime("%Y-%m-%d")
-                end_str = end_date.strftime("%Y-%m-%d")
-                key = f"{period_type}_{start_str}_to_{end_str}_{len(self.data_history)}"
-                label = f"{start_str} to {end_str}"
+                label = f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
             else:
-                from datetime import datetime
-                timestamp = datetime.now().strftime("%m-%d_%H%M")
-                key = f"{period_type}_{timestamp}_{len(self.data_history)}"
-                
-                # Better labels for default periods
-                period_labels = {
-                    "hour": f"24hr-{timestamp}",
-                    "day": f"7d-{timestamp}",
-                    "week": f"4w-{timestamp}",
-                    "month": f"3m-{timestamp}"
-                }
-                label = period_labels.get(period_type, f"{period_type}-{timestamp}")
+                period_labels = {"hour": "Last 24 Hours", "day": "Last 7 Days", "week": "Last 4 Weeks", "month": "Last 8 Weeks"}
+                label = f"{period_labels.get(period_type)} ({datetime.now().strftime('%H:%M')})"
             
-            self.data_history[key] = {
-                'data': self.current_df.copy(),
-                'label': label,
-                'period_type': period_type
-            }
-            
-            # Refresh to show overlapping data
+            key = f"{label}_{len(self.data_history)}"
+            self.data_history[key] = {'data': self.current_df.copy(), 'label': label, 'period_type': period_type}
             self.load_data()
             messagebox.showinfo("Added to Chart", f"Data layer added: {label}")
     
     def clear_history(self):
-        """Clear all historical data"""
         self.data_history.clear()
         self.load_data()
         messagebox.showinfo("Charts Cleared", "All chart layers have been removed")
     
     def load_data(self):
-        """Load and display customer traffic data with improved defaults"""
         try:
-            period_type = self.period_type_var.get()
-            
-            # Parse custom dates if enabled
-            start_date = None
-            end_date = None
+            start_date, end_date = None, None
             if self.use_custom_dates.get():
-                try:
-                    # Get dates directly from DateEntry widgets
-                    start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
-                    end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
-                except Exception as e:
-                    messagebox.showerror("Date Error", f"Please select valid dates: {str(e)}")
-                    return
-            
-            # Get data from analytics engine
-            try:
-                df = self.analytics.get_customer_traffic_analysis(period_type, start_date, end_date)
-                print(f"Customer traffic analysis returned {len(df)} records for {period_type}")
-            except Exception as e:
-                print(f"Error getting data from analytics: {e}")
-                messagebox.showerror("Data Error", f"Failed to load customer traffic data: {str(e)}")
-                return
-            
-            self.current_df = df  # Store for history functionality
-            
-            if not df.empty:
-                # Clear existing content (except header and controls)
-                for widget in self.winfo_children():
-                    if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
-                        widget.destroy()
-                
-                main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
-                main_frame.pack(fill="both", expand=True)
-                
-                # Info panel with better descriptions
-                info_frame = tk.Frame(main_frame, bg=self.theme_colors['secondary_bg'], relief="solid", bd=1)
-                info_frame.pack(fill="x", padx=10, pady=5)
-                
-                period_descriptions = {
-                    "hour": "📊 24 Hours Traffic Pattern",
-                    "day": "📊 7 Days Traffic Analysis",
-                    "week": "📊 4 Weeks Overview", 
-                    "month": "📊 8 Weeks Analysis"
-                }
-                
-                if self.use_custom_dates.get() and start_date and end_date:
-                    info_text = f"📊 Custom Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-                    if len(self.data_history) > 0:
-                        info_text += f" | {len(self.data_history)} comparison layers active"
-                else:
-                    info_text = period_descriptions.get(period_type, "📊 Traffic Analysis")
-                    if len(self.data_history) > 0:
-                        info_text += f" | {len(self.data_history)} comparison layers"
-                
-                tk.Label(info_frame, text=info_text,
-                        font=("Segoe UI", 11, "bold"), bg=self.theme_colors['secondary_bg'], 
-                        fg=self.theme_colors['fg']).pack(pady=8)
-                
-                # Create charts with light theme
-                colors = self.theme_colors
-                
-                chart_frame = tk.Frame(main_frame, bg=colors['chart_bg'], relief="solid", bd=1)
-                plt.style.use('seaborn-v0_8')
-                
-                fig_bg = colors['chart_bg']
-                title_color = colors['text_color']
-                text_color = colors['text_color']
-                grid_color = colors['grid_color']
-                legend_bg = colors['secondary_bg']
-                legend_edge = colors['text_color']
-                axis_bg = colors['secondary_bg']
-                chart_colors = colors['chart_colors']
-                stats_bg = colors['bg']
-                stats_fg = colors['fg']
-                
-                chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
-                
-                fig, axes = plt.subplots(2, 2, figsize=(18, 12), facecolor=fig_bg)
-                fig.suptitle(f'Customer Traffic Analysis - {period_type.title()} View', 
-                           fontsize=15, fontweight='bold', color=title_color, y=0.97)
-                
-                # Adjust subplot spacing to prevent label overlap - more aggressive spacing
-                plt.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.88, wspace=0.35, hspace=0.45)
-                
-                color_idx = 0
-                
-                # Plot current data with light theme styling
-                self.plot_traffic_data(axes, df, "Current Period", chart_colors[color_idx % len(chart_colors)], alpha=1.0)
-                
-                # Force x-axis to show all data points for day view
-                if period_type == "day" and not df.empty:
-                    for ax in axes.flat:
-                        # Set x-axis limits to include all data points
-                        ax.set_xlim(-0.5, 6.5)  # 0 to 6 for 7 days
-                        # Force all 7 ticks
-                        ax.set_xticks(list(range(7)))
-                        ax.set_xticklabels([f'Day {i+1}' for i in range(7)])
-                
-                color_idx += 1
-                
-                # Plot historical data with reduced opacity
-                for key, hist_data in self.data_history.items():
-                    if hist_data['period_type'] == period_type:  # Only show same period type
-                        self.plot_traffic_data(axes, hist_data['data'], hist_data['label'], 
-                                             chart_colors[color_idx % len(chart_colors)], alpha=0.6)
-                        color_idx += 1
-                
-                # Enhanced chart customization with light theme
-                chart_titles = [
-                    'Transaction Volume',
-                    'Unique Customers', 
-                    'Revenue Performance',
-                    'Avg Transaction Value'
-                ]
-                
-                for i, ax in enumerate(axes.flat):
-                    ax.grid(True, alpha=0.3, color=grid_color)
-                    ax.legend(loc='upper right', framealpha=0.9, facecolor=legend_bg, edgecolor=legend_edge, fontsize=8, bbox_to_anchor=(0.98, 0.98))
-                
-                # Set appropriate x-axis labels based on period type with better spacing
-                for i, ax in enumerate(axes.flat):
-                    if period_type == "hour":
-                        ax.set_xlabel('Hour', color=text_color, fontsize=9)
-                        # Show supermarket hours (10AM-10PM) with proper spacing
-                        if hasattr(self, 'current_df') and not self.current_df.empty:
-                            # Use actual data from the dataframe
-                            hours = sorted(self.current_df['time_period'].unique())
-                            # Show every 2-3 hours to prevent crowding
-                            display_hours = hours[::2] if len(hours) > 8 else hours
-                            ax.set_xticks(display_hours)
-                            # Format as 10:00, 12:00, 14:00, etc.
-                            labels = []
-                            for h in display_hours:
-                                if h == 12:
-                                    labels.append('12PM')
-                                elif h < 12:
-                                    labels.append(f'{int(h)}AM')
-                                else:
-                                    labels.append(f'{int(h-12)}PM')
-                            ax.set_xticklabels(labels)
-                            # Set tight x-axis limits to remove empty space
-                            ax.set_xlim(min(hours) - 0.3, max(hours) + 0.3)
-                        ax.tick_params(axis='x', labelsize=8, rotation=0)
-                    elif period_type == "day":
-                        ax.set_xlabel('Day', color=text_color, fontsize=9)
-                        # Show all 7 days with proper spacing
-                        ax.tick_params(axis='x', rotation=0, labelsize=8)
-                        
-                        # Use actual data from dataframe to get proper labels
-                        if hasattr(self, 'current_df') and not self.current_df.empty:
-                            # Use the period_label from the dataframe directly
-                            periods = sorted(self.current_df['time_period'].unique())
-                            labels = []
-                            for period in periods:
-                                # Get corresponding label from dataframe
-                                label_row = self.current_df[self.current_df['time_period'] == period]['period_label'].iloc[0]
-                                labels.append(label_row)
-                            ax.set_xticks(periods)
-                            ax.set_xticklabels(labels)
-                            # Set tight x-axis limits to remove empty space
-                            ax.set_xlim(min(periods) - 0.3, max(periods) + 0.3)
-                        else:
-                            # Fallback - show all 7 days
-                            ax.set_xticks(list(range(1, 8)))
-                            ax.set_xticklabels([f'Day {i}' for i in range(1, 8)])
-                            ax.set_xlim(0.7, 7.3)
-                        
-                    elif period_type == "week":
-                        ax.set_xlabel('Week', color=text_color, fontsize=9)
-                        ax.tick_params(axis='x', labelsize=8, rotation=0)
-                        # Use actual data from dataframe
-                        if hasattr(self, 'current_df') and not self.current_df.empty:
-                            periods = sorted(self.current_df['time_period'].unique())
-                            labels = []
-                            for period in periods:
-                                label_row = self.current_df[self.current_df['time_period'] == period]['period_label'].iloc[0]
-                                labels.append(label_row)
-                            ax.set_xticks(periods)
-                            ax.set_xticklabels(labels)
-                            # Set tight x-axis limits to remove empty space
-                            ax.set_xlim(min(periods) - 0.3, max(periods) + 0.3)
-                    else:  # month (8 weeks)
-                        ax.set_xlabel('Week', color=text_color, fontsize=9)
-                        ax.tick_params(axis='x', rotation=0, labelsize=8)
-                        # Use actual data from dataframe
-                        if hasattr(self, 'current_df') and not self.current_df.empty:
-                            periods = sorted(self.current_df['time_period'].unique())
-                            labels = []
-                            for period in periods:
-                                label_row = self.current_df[self.current_df['time_period'] == period]['period_label'].iloc[0]
-                                labels.append(label_row)
-                            # Show every other week for 8 weeks to prevent crowding
-                            if len(periods) > 6:
-                                display_periods = periods[::2]
-                                display_labels = [labels[i] for i in range(0, len(labels), 2)]
-                                ax.set_xticks(display_periods)
-                                ax.set_xticklabels(display_labels)
-                                ax.set_xlim(min(periods) - 0.3, max(periods) + 0.3)
-                            else:
-                                ax.set_xticks(periods)
-                                ax.set_xticklabels(labels)
-                                ax.set_xlim(min(periods) - 0.3, max(periods) + 0.3)
-                    
-                    # Improve y-axis formatting - prevent scientific notation
-                    ax.tick_params(axis='y', labelsize=8)
-                    
-                    # Format y-axis numbers to prevent scientific notation
-                    if i == 0:  # Transaction Volume
-                        # Set reasonable y-axis limits and formatting
-                        max_val = ax.get_ylim()[1]
-                        if max_val >= 1000:
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x/1000)}K' if x >= 1000 else f'{int(x)}'))
-                        else:
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x)}'))
-                    elif i == 1:  # Unique Customers
-                        max_val = ax.get_ylim()[1]
-                        if max_val >= 1000:
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x/1000)}K' if x >= 1000 else f'{int(x)}'))
-                        else:
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{int(x)}'))
-                    elif i == 2:  # Revenue
-                        max_val = ax.get_ylim()[1]
-                        if max_val > 1000000:  # If over 1M
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000000:.1f}M'))
-                        elif max_val > 1000:  # If over 1K
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000:.0f}K'))
-                        else:
-                            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${int(x)}'))
-                    elif i == 3:  # Avg Transaction
-                        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:.0f}'))
-                    
-                    # Reduce number of y-axis ticks to prevent crowding
-                    ax.locator_params(axis='y', nbins=4)
-                    
-                    # Add more padding to prevent label cutoff
-                    ax.margins(x=0.1, y=0.1)
-                    
-                    # Ensure title doesn't overlap with chart - readable font size
-                    ax.set_title(chart_titles[i], fontsize=11, fontweight='bold', pad=12, color=title_color)
-                
-                # Use manual spacing instead of tight_layout to prevent label overlap
-                # plt.tight_layout() is replaced by the subplots_adjust above
-                
-                try:
-                    canvas = FigureCanvasTkAgg(fig, chart_frame)
-                    canvas.draw()
-                    canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
-                except Exception as e:
-                    print(f"Error creating chart canvas: {e}")
-                    # Create a simple error message label instead
-                    error_label = tk.Label(chart_frame, text=f"Chart display error: {str(e)}", 
-                                         bg=colors['chart_bg'], fg="red", font=("Segoe UI", 10))
-                    error_label.pack(expand=True)
-                
-                # Summary statistics table with theme
-                stats_frame = tk.LabelFrame(main_frame, text="Traffic Summary", 
-                                          font=("Segoe UI", 12, "bold"), bg=stats_bg, fg=stats_fg)
-                stats_frame.pack(fill="x", padx=10, pady=5)
-                
-                # Calculate and display key metrics
-                total_transactions = df['transaction_count'].sum()
-                total_customers = df['unique_customers'].sum()
-                total_revenue = df['total_revenue'].sum()
-                avg_transaction = df['avg_transaction_value'].mean()
-                
-                stats_text = (f"Total Transactions: {total_transactions:,} | "
-                            f"Unique Customers: {total_customers:,} | "
-                            f"Total Revenue: ${total_revenue:,.2f} | "
-                            f"Avg Transaction: ${avg_transaction:.2f}")
-                
-                tk.Label(stats_frame, text=stats_text, 
-                        font=("Segoe UI", 10), bg=stats_bg, fg=stats_fg).pack(pady=8)
-                
+                start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
+                end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
+                period_type = 'day' # Default to day view for custom ranges
             else:
-                # Show no data message with instructions
-                no_data_frame = tk.Frame(self, bg=self.theme_colors['bg'])
-                no_data_frame.pack(fill="both", expand=True)
-                
-                center_frame = tk.Frame(no_data_frame, bg=self.theme_colors['bg'])
-                center_frame.place(relx=0.5, rely=0.5, anchor="center")
-                
-                tk.Label(center_frame, text="📊 No Customer Traffic Data", 
-                        font=("Segoe UI", 20, "bold"), bg=self.theme_colors['bg'],
-                        fg=self.theme_colors['fg']).pack(pady=10)
-                
-                tk.Label(center_frame, text=f"No sales transactions found for the selected {period_type} period.", 
-                        font=("Segoe UI", 12), bg=self.theme_colors['bg'],
-                        fg=self.theme_colors['fg']).pack(pady=5)
-                
-                if self.use_custom_dates.get() and start_date and end_date:
-                    tk.Label(center_frame, text=f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}", 
-                            font=("Segoe UI", 10), bg=self.theme_colors['bg'],
-                            fg="#666666").pack(pady=2)
-                
-                tk.Label(center_frame, text="Try selecting a different time period or date range.", 
-                        font=("Segoe UI", 10), bg=self.theme_colors['bg'],
-                        fg=self.theme_colors['fg']).pack(pady=2)
-                
+                days = int(self.period_var.get())
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=days)
+                period_type = 'day' if days <= 60 else 'week' # Use week view for longer periods
+
+            df = self.analytics.get_customer_traffic_analysis(period_type, start_date, end_date)
+            self.current_df = df
+
+            for widget in self.winfo_children():
+                if isinstance(widget, tk.Frame) and widget not in [self.winfo_children()[0], self.winfo_children()[1]]:
+                    widget.destroy()
+
+            if not df.empty:
+                self.display_traffic_data(df, period_type, start_date, end_date)
+            else:
+                self.display_no_data_message(period_type, start_date, end_date)
         except Exception as e:
-            print(f"Error loading customer traffic data: {e}")
             messagebox.showerror("Error", f"Failed to load traffic data: {str(e)}")
-    
-    def plot_traffic_data_modern(self, axes, df, label, color, alpha=1.0, linewidth=3):
-        """Plot traffic data with modern dark theme styling"""
-        if df.empty:
-            return
+
+    def display_traffic_data(self, df, period_type, start_date, end_date):
+        main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
+        main_frame.pack(fill="both", expand=True)
         
-        try:
-            df_sorted = df.sort_values('time_period')
+        info_frame = tk.Frame(main_frame, bg=self.theme_colors['secondary_bg'], relief="solid", bd=1)
+        info_frame.pack(fill="x", padx=10, pady=5)
 
-            marker_size = 6
-            line_style = '-'
+        if self.use_custom_dates.get() and start_date and end_date:
+            info_text = f"📊 Custom Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+        else:
+            days = int(self.period_var.get())
+            info_text = f"📊 Traffic Analysis for Last {days} Days"
 
-            axes[0, 0].plot(df_sorted['time_period'], df_sorted['transaction_count'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth, 
-                           marker='o', markersize=marker_size, linestyle=line_style,
-                           markerfacecolor=color, markeredgecolor='white', markeredgewidth=1)
-            axes[0, 0].set_ylabel('Transaction Count', color='white', fontweight='bold')
+        if len(self.data_history) > 0:
+            info_text += f" | {len(self.data_history)} comparison layers active"
 
-            axes[0, 1].plot(df_sorted['time_period'], df_sorted['unique_customers'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth,
-                           marker='s', markersize=marker_size, linestyle=line_style,
-                           markerfacecolor=color, markeredgecolor='white', markeredgewidth=1)
-            axes[0, 1].set_ylabel('Unique Customers', color='white', fontweight='bold')
+        tk.Label(info_frame, text=info_text,
+                font=("Segoe UI", 11, "bold"), bg=self.theme_colors['secondary_bg'], 
+                fg=self.theme_colors['fg']).pack(pady=8)
+        
+        chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
+        chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        fig, axes = plt.subplots(2, 2, figsize=(18, 12), facecolor=self.theme_colors['chart_bg'])
+        fig.suptitle(f'Customer Traffic Analysis - {period_type.title()} View', fontsize=15, fontweight='bold', color=self.theme_colors['text_color'], y=0.97)
+        plt.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.88, wspace=0.35, hspace=0.45)
+        
+        self.plot_traffic_data(axes, df, "Current Period", self.theme_colors['chart_colors'][0], alpha=1.0)
+        
+        for i, (key, hist_data) in enumerate(self.data_history.items()):
+            if hist_data['period_type'] == period_type:
+                self.plot_traffic_data(axes, hist_data['data'], hist_data['label'], self.theme_colors['chart_colors'][(i+1) % len(self.theme_colors['chart_colors'])], alpha=0.6)
+        
+        chart_titles = ['Transaction Volume', 'Items Sold', 'Revenue Performance', 'Avg Transaction Value']
+        for i, ax in enumerate(axes.flat):
+            ax.grid(True, alpha=0.3, color=self.theme_colors['grid_color'])
+            ax.legend(loc='upper right', framealpha=0.9, facecolor=self.theme_colors['secondary_bg'], edgecolor=self.theme_colors['text_color'], fontsize=8, bbox_to_anchor=(0.98, 0.98))
+            if not df.empty:
+                periods = sorted(df['time_period'].unique())
+                labels = [df[df['time_period'] == p]['period_label'].iloc[0] for p in periods]
+                display_periods, display_labels = (periods[::len(periods)//5], [labels[periods.index(p)] for p in periods[::len(periods)//5]]) if len(periods) > 10 else (periods, labels)
+                ax.set_xticks(display_periods)
+                ax.set_xticklabels(display_labels, rotation=30, ha='right')
+            ax.tick_params(axis='y', labelsize=8)
+            if i in [2, 3]: ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+            ax.set_title(chart_titles[i], fontsize=11, fontweight='bold', pad=12, color=self.theme_colors['text_color'])
 
-            axes[1, 0].plot(df_sorted['time_period'], df_sorted['total_revenue'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth,
-                           marker='^', markersize=marker_size, linestyle=line_style,
-                           markerfacecolor=color, markeredgecolor='white', markeredgewidth=1)
-            axes[1, 0].fill_between(df_sorted['time_period'], df_sorted['total_revenue'], 
-                                   alpha=alpha*0.2, color=color)
-            axes[1, 0].set_ylabel('Revenue ($)', color='white', fontweight='bold')
+        canvas = FigureCanvasTkAgg(fig, chart_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
+        
+        stats_frame = tk.LabelFrame(main_frame, text="Traffic Summary", font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'], fg=self.theme_colors['fg'])
+        stats_frame.pack(fill="x", padx=10, pady=5)
+        
+        total_transactions, total_items, total_revenue, avg_transaction = df['transaction_count'].sum(), df['items_sold'].sum(), df['total_revenue'].sum(), df['avg_transaction_value'].mean()
+        stats_text = f"Total Transactions: {total_transactions:,} | Items Sold: {int(total_items):,} | Total Revenue: ${total_revenue:,.2f} | Avg Transaction: ${avg_transaction:.2f}"
+        tk.Label(stats_frame, text=stats_text, font=("Segoe UI", 10), bg=self.theme_colors['bg'], fg=self.theme_colors['fg']).pack(pady=8)
 
-            axes[1, 1].plot(df_sorted['time_period'], df_sorted['avg_transaction_value'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth,
-                           marker='d', markersize=marker_size, linestyle=line_style,
-                           markerfacecolor=color, markeredgecolor='white', markeredgewidth=1)
-            axes[1, 1].set_ylabel('Avg Transaction ($)', color='white', fontweight='bold')
-            
-        except Exception as e:
-            print(f"Error plotting traffic data: {e}")
+    def display_no_data_message(self, period_type, start_date, end_date):
+        no_data_frame = tk.Frame(self, bg=self.theme_colors['bg'])
+        no_data_frame.pack(fill="both", expand=True)
+        center_frame = tk.Frame(no_data_frame, bg=self.theme_colors['bg'])
+        center_frame.place(relx=0.5, rely=0.5, anchor="center")
+        tk.Label(center_frame, text="📊 No Customer Traffic Data", font=("Segoe UI", 20, "bold"), bg=self.theme_colors['bg'], fg=self.theme_colors['fg']).pack(pady=10)
+        tk.Label(center_frame, text=f"No sales transactions found for the selected {period_type} period.", font=("Segoe UI", 12), bg=self.theme_colors['bg'], fg=self.theme_colors['fg']).pack(pady=5)
+        if self.use_custom_dates.get() and start_date and end_date:
+            tk.Label(center_frame, text=f"Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}", font=("Segoe UI", 10), bg=self.theme_colors['bg'], fg="#666666").pack(pady=2)
+        tk.Label(center_frame, text="Try selecting a different time period or date range.", font=("Segoe UI", 10), bg=self.theme_colors['bg'], fg=self.theme_colors['fg']).pack(pady=2)
 
     def plot_traffic_data(self, axes, df, label, color, alpha=1.0, linewidth=2):
-        """Plot traffic data on the provided axes"""
-        if df.empty:
-            return
-        
+        if df.empty: return
         try:
             df_sorted = df.sort_values('time_period')
-            print(f"Plotting {label}: {len(df_sorted)} data points")
-            print(f"Time periods being plotted: {df_sorted['time_period'].tolist()}")
-
-            axes[0, 0].plot(df_sorted['time_period'], df_sorted['transaction_count'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth, marker='o', markersize=4)
+            axes[0, 0].plot(df_sorted['time_period'], df_sorted['transaction_count'], label=label, color=color, alpha=alpha, linewidth=linewidth, marker='o', markersize=4)
             axes[0, 0].set_ylabel('Transaction Count')
-
-            axes[0, 1].plot(df_sorted['time_period'], df_sorted['unique_customers'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth, marker='s', markersize=4)
-            axes[0, 1].set_ylabel('Unique Customers')
-
-            axes[1, 0].plot(df_sorted['time_period'], df_sorted['total_revenue'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth, marker='^', markersize=4)
+            axes[0, 1].plot(df_sorted['time_period'], df_sorted['items_sold'], label=label, color=color, alpha=alpha, linewidth=linewidth, marker='s', markersize=4)
+            axes[0, 1].set_ylabel('Items Sold')
+            axes[1, 0].plot(df_sorted['time_period'], df_sorted['total_revenue'], label=label, color=color, alpha=alpha, linewidth=linewidth, marker='^', markersize=4)
             axes[1, 0].set_ylabel('Revenue ($)')
-
-            axes[1, 1].plot(df_sorted['time_period'], df_sorted['avg_transaction_value'], 
-                           label=label, color=color, alpha=alpha, linewidth=linewidth, marker='d', markersize=4)
+            axes[1, 1].plot(df_sorted['time_period'], df_sorted['avg_transaction_value'], label=label, color=color, alpha=alpha, linewidth=linewidth, marker='d', markersize=4)
             axes[1, 1].set_ylabel('Avg Transaction ($)')
-            
         except Exception as e:
             print(f"Error plotting traffic data: {e}")
     
     def export_pdf(self):
-        """Export customer traffic analysis to PDF"""
         try:
-            period_type = self.period_type_var.get()
-            
-            start_date = None
-            end_date = None
+            start_date, end_date = None, None
             if self.use_custom_dates.get():
-                try:
-                    start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
-                    end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
-                except Exception:
-                    pass
+                start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
+                end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
+                period_type = 'day'
+            else:
+                days = int(self.period_var.get())
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=days)
+
+                if days <= 2:
+                    period_type = 'hour'
+                elif days <= 90:
+                    period_type = 'day'
+                else:
+                    period_type = 'week'
+            start_date, end_date = None, None
+            if self.use_custom_dates.get():
+                start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
+                end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
             
             df = self.analytics.get_customer_traffic_analysis(period_type, start_date, end_date)
             if not df.empty:
@@ -2272,18 +1769,12 @@ class CustomerTrafficAnalysis(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
     
     def export_excel(self):
-        """Export customer traffic analysis to Excel"""
         try:
             period_type = self.period_type_var.get()
-            
-            start_date = None
-            end_date = None
+            start_date, end_date = None, None
             if self.use_custom_dates.get():
-                try:
-                    start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
-                    end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
-                except Exception:
-                    pass
+                start_date = datetime.combine(self.start_date_entry.get_date(), datetime.min.time())
+                end_date = datetime.combine(self.end_date_entry.get_date(), datetime.max.time())
             
             df = self.analytics.get_customer_traffic_analysis(period_type, start_date, end_date)
             if not df.empty:
@@ -2296,60 +1787,47 @@ class CustomerTrafficAnalysis(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
     
     def refresh_data(self):
-        """Refresh the data display"""
         self.load_data()
 
 
 class PromotionEffectiveness(DataDisplayFrame):
     def __init__(self, master):
         super().__init__(master, "Promotion Effectiveness Analysis")
-        self.period_var = tk.StringVar(value="30_days")
+        self.period_var = tk.StringVar(value="30")
         self.promotion_type_var = tk.StringVar(value="all")
         self.status_var = tk.StringVar(value="all")
         self.start_date_var = tk.StringVar()
         self.end_date_var = tk.StringVar()
-        
         self.setup_controls()
         self.load_data()
     
     def setup_controls(self):
-        """Setup control panel with comprehensive filtering options"""
-        self.control_frame = tk.LabelFrame(self, text="Filter Controls", 
-                                         font=("Segoe UI", 12, "bold"), 
-                                         bg="#e8f4f8", fg="#2c3e50",
-                                         relief="raised", bd=2)
+        self.control_frame = tk.LabelFrame(self, text="Filter Controls", font=("Segoe UI", 12, "bold"), bg="#e8f4f8", fg="#2c3e50", relief="raised", bd=2)
         self.control_frame.pack(fill="x", padx=10, pady=5)
         
         row1_frame = tk.Frame(self.control_frame, bg="#e8f4f8")
         row1_frame.pack(fill="x", pady=5, padx=10)
         
-        tk.Label(row1_frame, text="Time Period:", 
-                font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
+        tk.Label(row1_frame, text="Time Period:", font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
         
-        period_combo = ttk.Combobox(row1_frame, textvariable=self.period_var, width=12,
-                                   values=["7_days", "30_days", "90_days", "custom"], state="readonly")
+        period_combo = ttk.Combobox(row1_frame, textvariable=self.period_var, width=12, values=["7", "30", "90", "Custom"], state="readonly")
         period_combo.pack(side="left", padx=(0, 15))
         period_combo.bind("<<ComboboxSelected>>", self.on_filter_change)
+        tk.Label(row1_frame, text="Days", font=("Segoe UI", 9, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
         
-        tk.Label(row1_frame, text="Type:", 
-                font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
+        tk.Label(row1_frame, text="Type:", font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
         
-        type_combo = ttk.Combobox(row1_frame, textvariable=self.promotion_type_var, width=12,
-                                 values=["all", "discount", "bogo", "loyalty"], state="readonly")
+        type_combo = ttk.Combobox(row1_frame, textvariable=self.promotion_type_var, width=12, values=["all", "discount", "bogo", "loyalty"], state="readonly")
         type_combo.pack(side="left", padx=(0, 15))
         type_combo.bind("<<ComboboxSelected>>", self.on_filter_change)
         
-        tk.Label(row1_frame, text="Status:", 
-                font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
+        tk.Label(row1_frame, text="Status:", font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
         
-        status_combo = ttk.Combobox(row1_frame, textvariable=self.status_var, width=12,
-                                   values=["all", "active", "expired", "upcoming"], state="readonly")
+        status_combo = ttk.Combobox(row1_frame, textvariable=self.status_var, width=12, values=["all", "active", "expired", "upcoming"], state="readonly")
         status_combo.pack(side="left", padx=(0, 15))
         status_combo.bind("<<ComboboxSelected>>", self.on_filter_change)
         
-        refresh_btn = tk.Button(row1_frame, text="🔄 Refresh", command=self.load_data,
-                               bg="#3498db", fg="white", font=("Segoe UI", 9, "bold"),
-                               relief="raised", bd=2)
+        refresh_btn = tk.Button(row1_frame, text="🔄 Refresh", command=self.load_data, bg="#3498db", fg="white", font=("Segoe UI", 9, "bold"), relief="raised", bd=2)
         refresh_btn.pack(side="right", padx=(10, 0))
         
         row2_frame = tk.Frame(self.control_frame, bg="#e8f4f8")
@@ -2358,200 +1836,124 @@ class PromotionEffectiveness(DataDisplayFrame):
         self.date_frame = tk.Frame(row2_frame, bg="#e8f4f8")
         self.date_frame.pack(side="left", padx=(15, 0))
         
-        tk.Label(self.date_frame, text="From:", 
-                font=("Segoe UI", 9, "bold"), bg="#e8f4f8").pack(side="left")
+        tk.Label(self.date_frame, text="From:", font=("Segoe UI", 9, "bold"), bg="#e8f4f8").pack(side="left")
         
-        self.start_date_picker = DateEntry(self.date_frame, width=10, background='darkblue',
-                                         foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        self.start_date_picker = DateEntry(self.date_frame, width=10, background='darkblue', foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
         self.start_date_picker.pack(side="left", padx=(5, 10))
         
-        tk.Label(self.date_frame, text="To:", 
-                font=("Segoe UI", 9, "bold"), bg="#e8f4f8").pack(side="left")
+        tk.Label(self.date_frame, text="To:", font=("Segoe UI", 9, "bold"), bg="#e8f4f8").pack(side="left")
         
-        self.end_date_picker = DateEntry(self.date_frame, width=10, background='darkblue',
-                                       foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        self.end_date_picker = DateEntry(self.date_frame, width=10, background='darkblue', foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
         self.end_date_picker.pack(side="left", padx=5)
         
         self.date_frame.pack_forget()
     
     def on_filter_change(self, event=None):
-        """Handle any filter change"""
         if self.period_var.get() == "custom":
             self.date_frame.pack(side="left", padx=(15, 0))
         else:
             self.date_frame.pack_forget()
         self.load_data()
     
-    def on_period_change(self, event=None):
-        """Handle period selection change (legacy method for compatibility)"""
-        self.on_filter_change(event)
-    
     def load_data(self):
-        """Load and display promotion effectiveness data"""
         try:
             for widget in self.winfo_children():
                 if widget != self.control_frame:
                     widget.destroy()
-            
-            period = self.period_var.get()
+
+            period_str = self.period_var.get()
             promotion_type = self.promotion_type_var.get() if self.promotion_type_var.get() != "all" else None
             status = self.status_var.get() if self.status_var.get() != "all" else None
-            
-            if period == "custom":
+
+            days = 30
+            start_date = None
+            end_date = None
+
+            if period_str == "Custom":
                 start_date = self.start_date_picker.get_date()
                 end_date = self.end_date_picker.get_date()
-                df = self.analytics.get_promotion_effectiveness(days=30)
             else:
-                df = self.analytics.get_promotion_effectiveness(days=30)
-            
+                days = int(period_str)
+
+            df = self.analytics.get_promotion_effectiveness(days=days, promotion_type=promotion_type, status=status, start_date=start_date, end_date=end_date)
+
             if not df.empty:
-                separator = tk.Frame(self, height=2, bg="#34495e")
-                separator.pack(fill="x", padx=20, pady=5)
-                
-                main_frame = tk.Frame(self, bg="#f0f0f0")
-                main_frame.pack(fill="both", expand=True, padx=10, pady=5)
-                
-                metrics_frame = tk.Frame(main_frame, bg="#f0f0f0")
-                metrics_frame.pack(fill="x", pady=(0, 10))
-                
-                total_promotions = len(df)
-                if 'end_date' in df.columns:
-                    active_promotions = len(df[df['end_date'] >= pd.Timestamp.now().date()])
-                else:
-                    active_promotions = total_promotions  
-                    
-                total_revenue = df['total_revenue'].sum() if 'total_revenue' in df.columns else 0
-                avg_discount = df['discount_percentage'].fillna(0).infer_objects(copy=False).mean() if 'discount_percentage' in df.columns else 0
-                
-                total_transactions = df['transactions_count'].sum() if 'transactions_count' in df.columns else 0
-                avg_transaction_value = df['avg_transaction_value'].fillna(0).infer_objects(copy=False).mean() if 'avg_transaction_value' in df.columns else 0
-                total_discount_given = df['total_discount_given'].sum() if 'total_discount_given' in df.columns else 0
-                
-                period_label = self.period_var.get().replace('_', ' ').title()
-                if period_label == "Custom":
-                    try:
-                        start_date = self.start_date_picker.get_date()
-                        end_date = self.end_date_picker.get_date()
-                        period_label = f"Custom ({start_date} to {end_date})"
-                    except:
-                        period_label = "Custom Range"
-            
-                metric_cards = [
-                    ("Period", period_label, "#34495e"),
-                    ("Total Promotions", total_promotions, "#3498db"),
-                    ("Active Promotions", active_promotions, "#27ae60"),
-                    ("Total Revenue", f"${total_revenue:,.2f}", "#e74c3c"),
-                    ("Avg Discount", f"{avg_discount:.1f}%", "#f39c12"),
-                    ("Total Transactions", int(total_transactions), "#8e44ad"),
-                    ("Avg Transaction Value", f"${avg_transaction_value:.2f}", "#16a085"),
-                    ("Total Discount Given", f"${total_discount_given:,.2f}", "#2980b9")
-                ]
-                
-                for i, (title, value, color) in enumerate(metric_cards):
-                    card = tk.Frame(metrics_frame, bg=color, relief="raised", bd=2)
-                    card.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-                    
-                    tk.Label(card, text=str(value), font=("Segoe UI", 16, "bold"), 
-                            bg=color, fg="white").pack(pady=(10, 5))
-                    tk.Label(card, text=title, font=("Segoe UI", 10), 
-                            bg=color, fg="white").pack(pady=(0, 10))
-                
-                chart_frame = tk.Frame(main_frame, bg="white", relief="solid", bd=1)
-                chart_frame.pack(fill="both", expand=True, pady=(0, 10))
-                
-                fig, axes = plt.subplots(1, 2, figsize=(14, 6), facecolor='white')
-                
-                print(f"DEBUG: DataFrame columns: {list(df.columns)}")
-                print(f"DEBUG: DataFrame shape: {df.shape}")
-                if 'total_revenue' in df.columns:
-                    print(f"DEBUG: total_revenue column found, sum: {df['total_revenue'].sum()}")
-                    top_promos = df.nlargest(8, 'total_revenue')
-                    print(f"DEBUG: Top promos shape: {top_promos.shape}")
-                    if not top_promos.empty:
-                        print(f"DEBUG: Creating chart with {len(top_promos)} promotions")
-                        bars = axes[0].bar(range(len(top_promos)), top_promos['total_revenue'], 
-                                          color='#3498db', alpha=0.8)
-                        axes[0].set_title('Revenue by Active Promotion', fontsize=12, fontweight='bold')
-                        axes[0].set_xlabel('Promotion')
-                        axes[0].set_ylabel('Revenue ($)')
-                        axes[0].set_xticks(range(len(top_promos)))
-                        axes[0].set_xticklabels(top_promos['promotion_name'], rotation=45, ha='right')
-                        
-                        for bar in bars:
-                            height = bar.get_height()
-                            axes[0].text(bar.get_x() + bar.get_width()/2., height,
-                                   f'${height:,.0f}', ha='center', va='bottom')
-                    else:
-                        print("DEBUG: top_promos is empty")
-                        axes[0].text(0.5, 0.5, 'No promotion data available', 
-                                    ha='center', va='center', transform=axes[0].transAxes)
-                        axes[0].set_title('Revenue by Active Promotion', fontsize=12, fontweight='bold')
-                else:
-                    print("DEBUG: total_revenue column NOT found")
-                    axes[0].text(0.5, 0.5, 'Total revenue data not available', 
-                                ha='center', va='center', transform=axes[0].transAxes)
-                    axes[0].set_title('Revenue by Active Promotion', fontsize=12, fontweight='bold')
-                
-                if 'promotion_type' in df.columns:
-                    promo_types = df['promotion_type'].value_counts()
-                    if not promo_types.empty:
-                        colors = ['#3498db', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#e67e22']
-                        axes[1].pie(promo_types.values, labels=promo_types.index, autopct='%1.1f%%',
-                                   colors=colors[:len(promo_types)])
-                        axes[1].set_title('Promotion Types Distribution', fontsize=12, fontweight='bold')
-                    else:
-                        axes[1].text(0.5, 0.5, 'No promotion types available', 
-                                    ha='center', va='center', transform=axes[1].transAxes)
-                        axes[1].set_title('Promotion Types Distribution', fontsize=12, fontweight='bold')
-                else:
-                    axes[1].text(0.5, 0.5, 'Promotion type data not available', 
-                                ha='center', va='center', transform=axes[1].transAxes)
-                    axes[1].set_title('Promotion Types Distribution', fontsize=12, fontweight='bold')
-                
-                plt.tight_layout()
-                
-                canvas = FigureCanvasTkAgg(fig, chart_frame)
-                canvas.draw()
-                canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
-                
-                stats_frame = tk.LabelFrame(main_frame, text="Promotion Details & Performance", 
-                                          font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
-                stats_frame.pack(fill="both", expand=True)
-                
-                available_cols = [col for col in [
-                    'promotion_name', 'promotion_type', 'discount_percentage',
-                    'start_date', 'end_date', 'total_revenue',
-                    'transactions_count', 'total_discount_given', 'avg_transaction_value'
-                ] if col in df.columns]
-                
-                self.create_data_table(df[available_cols], stats_frame)
+                self.display_promotion_data(df)
             else:
-                tk.Label(self, text="No promotion data available for the selected period", 
-                        font=("Segoe UI", 16), bg="#f0f0f0").pack(expand=True)
-                
+                tk.Label(self, text="No promotion data available for the selected filters.", font=("Segoe UI", 16), bg="#f0f0f0").pack(expand=True)
+
         except Exception as e:
-            print(f"Error loading promotion effectiveness data: {e}")
             messagebox.showerror("Error", f"Failed to load promotion data: {str(e)}")
+
+    def display_promotion_data(self, df):
+        separator = tk.Frame(self, height=2, bg="#34495e")
+        separator.pack(fill="x", padx=20, pady=5)
+
+        main_frame = tk.Frame(self, bg="#f0f0f0")
+        main_frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+        metrics_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        metrics_frame.pack(fill="x", pady=(0, 10))
+
+        total_promotions, active_promotions = len(df), df['is_active'].sum()
+        total_revenue, total_transactions = df['total_revenue'].sum(), df['transactions_count'].sum()
+        avg_discount = df[df['discount_percentage'] > 0]['discount_percentage'].mean() if not df[df['discount_percentage'] > 0].empty else 0
+        
+        metric_cards = [
+            ("Total Promotions", total_promotions, "#34495e"),
+            ("Active Promotions", active_promotions, "#27ae60"),
+            ("Total Revenue", f"${total_revenue:,.2f}", "#e74c3c"),
+            ("Avg Discount", f"{avg_discount:.1f}%", "#f39c12"),
+            ("Total Transactions", int(total_transactions), "#8e44ad")
+        ]
+
+        for title, value, color in metric_cards:
+            card = tk.Frame(metrics_frame, bg=color, relief="raised", bd=2)
+            card.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+            tk.Label(card, text=str(value), font=("Segoe UI", 16, "bold"), bg=color, fg="white").pack(pady=(10, 5))
+            tk.Label(card, text=title, font=("Segoe UI", 10), bg=color, fg="white").pack(pady=(0, 10))
+
+        chart_frame = tk.Frame(main_frame, bg="white", relief="solid", bd=1)
+        chart_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6), facecolor='white')
+
+        top_promos = df.nlargest(8, 'total_revenue')
+        axes[0].bar(top_promos['promotion_name'], top_promos['total_revenue'], color='#3498db', alpha=0.8)
+        axes[0].set_title('Revenue by Promotion', fontsize=12, fontweight='bold')
+        axes[0].set_ylabel('Revenue ($)')
+        axes[0].tick_params(axis='x', rotation=45)
+
+        promo_types = df['promotion_type'].value_counts()
+        axes[1].pie(promo_types.values, labels=promo_types.index, autopct='%1.1f%%', startangle=90)
+        axes[1].set_title('Promotion Types Distribution', fontsize=12, fontweight='bold')
+
+        plt.tight_layout()
+        canvas = FigureCanvasTkAgg(fig, chart_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
+
+        table_frame = tk.LabelFrame(main_frame, text="Promotion Details", font=("Segoe UI", 12, "bold"), bg="#f0f0f0")
+        table_frame.pack(fill="both", expand=True)
+
+        display_cols = ['promotion_name', 'promotion_type', 'start_date', 'end_date', 'total_revenue', 'transactions_count']
+        self.create_data_table(df[display_cols], table_frame)
     
     def export_pdf(self):
-        """Export promotion effectiveness to PDF"""
         try:
             period = self.period_var.get()
             promotion_type = self.promotion_type_var.get() if self.promotion_type_var.get() != "all" else None
             status = self.status_var.get() if self.status_var.get() != "all" else None
             
-            if period == "custom":
+            if period == "Custom":
                 start_date = self.start_date_picker.get_date()
                 end_date = self.end_date_picker.get_date()
-                df = self.analytics.get_promotion_effectiveness(
-                    period_type="custom", start_date=start_date, end_date=end_date,
-                    promotion_type=promotion_type, status=status)
+                df = self.analytics.get_promotion_effectiveness(start_date=start_date, end_date=end_date, promotion_type=promotion_type, status=status)
             else:
-                df = self.analytics.get_promotion_effectiveness(
-                    period_type=period, promotion_type=promotion_type, status=status)
+                days = int(period)
+                df = self.analytics.get_promotion_effectiveness(days=days, promotion_type=promotion_type, status=status)
             
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Promotion Effectiveness": df}
                 report_gen.generate_pdf_report("Promotion Effectiveness Report", data_sections)
@@ -2562,7 +1964,6 @@ class PromotionEffectiveness(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
     
     def export_excel(self):
-        """Export promotion effectiveness to Excel"""
         try:
             period = self.period_var.get()
             promotion_type = self.promotion_type_var.get() if self.promotion_type_var.get() != "all" else None
@@ -2571,15 +1972,12 @@ class PromotionEffectiveness(DataDisplayFrame):
             if period == "custom":
                 start_date = self.start_date_picker.get_date()
                 end_date = self.end_date_picker.get_date()
-                df = self.analytics.get_promotion_effectiveness(
-                    period_type="custom", start_date=start_date, end_date=end_date,
-                    promotion_type=promotion_type, status=status)
+                df = self.analytics.get_promotion_effectiveness(start_date=start_date, end_date=end_date, promotion_type=promotion_type, status=status)
             else:
-                df = self.analytics.get_promotion_effectiveness(
-                    period_type=period, promotion_type=promotion_type, status=status)
+                days = int(period.split('_')[0])
+                df = self.analytics.get_promotion_effectiveness(days=days, promotion_type=promotion_type, status=status)
             
             if not df.empty:
-                from report_generator import ManagerReportGenerator
                 report_gen = ManagerReportGenerator()
                 data_sections = {"Promotion Effectiveness": df}
                 report_gen.generate_excel_report("Promotion Effectiveness Report", data_sections)
@@ -2590,5 +1988,4 @@ class PromotionEffectiveness(DataDisplayFrame):
             messagebox.showerror("Export Error", f"Failed to export: {str(e)}")
     
     def refresh_data(self):
-        """Refresh the data display"""
         self.load_data()
