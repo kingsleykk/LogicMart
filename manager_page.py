@@ -491,7 +491,7 @@ class TopSelling(DataDisplayFrame):
                 fg=self.theme_colors['fg']).pack()
         
         limit_combo = ttk.Combobox(limit_frame, textvariable=self.limit_var, 
-                                  values=["5", "10", "15", "20", "25", "50"], width=8)
+                                  values=["5", "10", "15", "20", "25"], width=8)
         limit_combo.pack(pady=2)
         limit_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
@@ -658,7 +658,7 @@ class TopSelling(DataDisplayFrame):
                 chart_frame = tk.Frame(main_frame, bg=self.theme_colors['chart_bg'], relief="solid", bd=1)
                 chart_frame.pack(fill="both", expand=True, padx=10, pady=5)
                 
-                top_5 = df.head(5)
+                top_5 = df.head(limit)
                 
                 y_column_map = {
                     "quantity": "total_quantity_sold",
@@ -1103,14 +1103,14 @@ class SalesForecast(DataDisplayFrame):
     
     def export_pdf(self):
         try:
+
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
-                df = self.analytics.get_sales_forecast_data(30)
+                df = self.analytics.get_sales_forecast_data(start_date=start_date, end_date=end_date)
             else:
-                df = self.analytics.get_sales_forecast_data(
-                    int(self.period_var.get())
-                )
+                days = int(self.period_var.get())
+                df = self.analytics.get_sales_forecast_data(days=days)
                 
             if not df.empty:
                 report_gen = ManagerReportGenerator()
@@ -1314,6 +1314,7 @@ class ManagerPage(tk.Frame):
         self.controller.set_current_user(None)
         self.controller.show_frame("LoginPage")
         self.controller.title("LogicMart Analytics System - Login")
+        messagebox.showinfo("Logout", "You have been logged out successfully")
 
     def clear_content(self):
         if self.current_content:
@@ -1810,7 +1811,7 @@ class PromotionEffectiveness(DataDisplayFrame):
         
         tk.Label(row1_frame, text="Time Period:", font=("Segoe UI", 10, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))
         
-        period_combo = ttk.Combobox(row1_frame, textvariable=self.period_var, width=12, values=["7", "30", "90", "Custom"], state="readonly")
+        period_combo = ttk.Combobox(row1_frame, textvariable=self.period_var, width=12, values=["7", "30", "90"], state="readonly")
         period_combo.pack(side="left", padx=(0, 15))
         period_combo.bind("<<ComboboxSelected>>", self.on_filter_change)
         tk.Label(row1_frame, text="Days", font=("Segoe UI", 9, "bold"), bg="#e8f4f8").pack(side="left", padx=(0, 5))

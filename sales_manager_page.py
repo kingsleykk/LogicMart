@@ -2017,6 +2017,7 @@ class SManagerPage(tk.Frame):
         self.controller.set_current_user(None)
         self.controller.show_frame("LoginPage")
         self.controller.title("LogicMart Analytics System - Login")
+        messagebox.showinfo("Logout", "You have been logged out successfully")
 
     def clear_content(self):
         if self.current_content:

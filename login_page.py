@@ -29,16 +29,13 @@ class LoginPage(tk.Frame):
             messagebox.showerror("Login Failed", "Please enter both username and password")
             return
 
-
         user_info = user_manager.authenticate_user(username, password)
         
         if user_info:
             self.current_user = user_info
             messagebox.showinfo("Login Successful", f"Welcome, {username}!")
-            
 
             self.controller.set_current_user(user_info)
-            
 
             role = user_info['role']
             if role == "manager":
@@ -51,15 +48,12 @@ class LoginPage(tk.Frame):
             messagebox.showerror("Login Failed", "Invalid username or password")
 
     def logout(self):
-        """Handle user logout"""
         self.current_user = None
         self.controller.set_current_user(None)  
         self.entry_username.delete(0, tk.END)
         self.entry_password.delete(0, tk.END)
-        messagebox.showinfo("Logout", "You have been logged out successfully")
 
     def get_current_user(self):
-        """Get current logged in user info"""
         return self.current_user
 
     def show_password(self):

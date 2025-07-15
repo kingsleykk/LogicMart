@@ -11,20 +11,18 @@ import psycopg2
 from tkinter import messagebox
 import numpy as np
 
+
 class BaseAnalytics:
-    """Base class for analytics functionality"""
-    
+
     def __init__(self):
         self.db_config = db_config
-    
+
     def execute_query(self, query, params=None, max_retries=3):
-        """Execute a SQL query and return results as DataFrame with retry logic"""
         import warnings
         for attempt in range(max_retries):
             try:
                 conn = self.db_config.get_connection()
                 if conn and not conn.closed:
-                    # Suppress pandas SQLAlchemy warning
                     with warnings.catch_warnings():
                         warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy")
                         df = pd.read_sql_query(query, conn, params=params)
@@ -32,29 +30,28 @@ class BaseAnalytics:
                     return df
                 else:
                     print(f"Attempt {attempt + 1}: Failed to get valid database connection")
-                    
+
             except (psycopg2.Error, psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 print(f"Attempt {attempt + 1}: Database error: {e}")
                 self.db_config.disconnect()
-                
+
                 if attempt < max_retries - 1:
                     print("Retrying database operation...")
-                    time.sleep(2) 
+                    time.sleep(2)
                 else:
                     print("Max retries reached. Showing error to user.")
                     error_msg = f"Database connection failed after {max_retries} attempts.\n\nError: {str(e)}\n\nPlease check your internet connection and try again."
                     messagebox.showerror("Database Connection Error", error_msg)
-                    
+
             except Exception as e:
                 print(f"Unexpected error: {e}")
                 error_msg = f"An unexpected error occurred while executing the query:\n\n{str(e)}"
                 messagebox.showerror("Query Error", error_msg)
                 break
-        
-        return pd.DataFrame() 
-    
+
+        return pd.DataFrame()
+
     def save_plot_as_base64(self, fig):
-        """Convert matplotlib figure to base64 string"""
         buffer = io.BytesIO()
         fig.savefig(buffer, format='png', bbox_inches='tight', dpi=150)
         buffer.seek(0)
@@ -64,7 +61,6 @@ class BaseAnalytics:
         return graphic.decode('utf-8')
 
     def check_database_schema(self):
-        """Diagnostic method to check what tables and columns exist in the database"""
         try:
             table_query = """
             SELECT table_name 
@@ -72,20 +68,20 @@ class BaseAnalytics:
             WHERE table_schema = 'public'
             ORDER BY table_name;
             """
-            
+
             tables_df = self.execute_query(table_query, [])
             print("=== AVAILABLE TABLES ===")
             if not tables_df.empty:
                 for table in tables_df['table_name']:
                     print(f"✓ {table}")
-                    
+
                     columns_query = """
                     SELECT column_name, data_type 
                     FROM information_schema.columns 
                     WHERE table_schema = 'public' AND table_name = %s
                     ORDER BY ordinal_position;
                     """
-                    
+
                     columns_df = self.execute_query(columns_query, [table])
                     if not columns_df.empty:
                         print(f"  Columns in {table}:")
@@ -94,10 +90,10 @@ class BaseAnalytics:
                     print()
             else:
                 print("No tables found in public schema")
-                
+
             print("=== PROMOTION TABLES CHECK ===")
             required_tables = ['promotions', 'promotion_products', 'sales_transaction_items', 'sales_transactions']
-            
+
             for table_name in required_tables:
                 check_query = f"""
                 SELECT EXISTS (
@@ -109,21 +105,20 @@ class BaseAnalytics:
                 exists = result.iloc[0, 0] if not result.empty else False
                 status = "✓ EXISTS" if exists else "✗ MISSING"
                 print(f"{table_name}: {status}")
-                
+
                 if exists:
                     count_query = f"SELECT COUNT(*) as row_count FROM {table_name};"
                     count_result = self.execute_query(count_query, [])
                     row_count = count_result.iloc[0, 0] if not count_result.empty else 0
                     print(f"  Row count: {row_count}")
-                    
+
         except Exception as e:
             print(f"Error checking database schema: {e}")
 
+
 class ManagerAnalytics(BaseAnalytics):
-    """Analytics functionality for Managers"""
-    
+
     def get_sales_trend_analysis(self, days=30, metric="revenue"):
-        """Get sales trend analysis for the last N days"""
         query = """
         SELECT 
             DATE(transaction_date) as date,
@@ -135,12 +130,11 @@ class ManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(transaction_date)
         ORDER BY date
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_sales_trend_analysis_custom(self, start_date, end_date, metric="revenue"):
-        """Get sales trend analysis for a custom date range"""
         query = """
         SELECT 
             DATE(transaction_date) as date,
@@ -152,11 +146,10 @@ class ManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(transaction_date)
         ORDER BY date
         """
-        
+
         return self.execute_query(query, [start_date, end_date])
-    
+
     def get_peak_shopping_hours(self, days=7):
-        """Get customer traffic analysis by hour"""
         query = """
         SELECT 
             EXTRACT(HOUR FROM transaction_date) as hour,
@@ -166,12 +159,11 @@ class ManagerAnalytics(BaseAnalytics):
         GROUP BY EXTRACT(HOUR FROM transaction_date)
         ORDER BY hour
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_top_selling_products(self, limit=10, days=30):
-        """Get top selling products and their categories"""
         query = """
         SELECT 
             p.name as product_name,
@@ -188,12 +180,11 @@ class ManagerAnalytics(BaseAnalytics):
         ORDER BY total_quantity_sold DESC
         LIMIT %s
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date, limit])
-    
+
     def get_inventory_usage_trends(self):
-        """Get inventory usage and restocking insights"""
         query = """
         SELECT 
             p.name as product_name,
@@ -220,13 +211,11 @@ class ManagerAnalytics(BaseAnalytics):
         WHERE p.is_active = TRUE
         ORDER BY p.current_stock ASC
         """
-        
+
         week_ago = datetime.now() - timedelta(days=7)
         return self.execute_query(query, [week_ago])
-    
-    
+
     def get_promotion_effectiveness(self, days=30, promotion_type=None, status=None, start_date=None, end_date=None):
-        """Get promotion effectiveness analysis with comprehensive filtering."""
 
         params = []
         where_clauses = ["1=1"]
@@ -275,9 +264,8 @@ class ManagerAnalytics(BaseAnalytics):
         """
 
         return self.execute_query(query, params)
-    
-    def get_sales_forecast_data(self, days=30):
-        """Get data for basic sales forecasting"""
+
+    def get_sales_forecast_data(self, days=30, start_date=None, end_date=None):
         query = """
         SELECT 
             DATE(transaction_date) as date,
@@ -289,12 +277,11 @@ class ManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(transaction_date)
         ORDER BY date
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
 
     def get_product_sales_trends(self, days=30, limit=10):
-        """Get detailed sales trends for top products"""
         query = """
         WITH product_daily_sales AS (
             SELECT 
@@ -337,15 +324,14 @@ class ManagerAnalytics(BaseAnalytics):
         JOIN product_totals pt ON pds.product_name = pt.product_name
         ORDER BY pt.total_quantity DESC, pds.sale_date ASC
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date, limit])
-    
+
     def get_promotion_effectiveness(self, days=30, promotion_type=None, status=None, start_date=None, end_date=None):
-        """Get promotion effectiveness analysis with comprehensive filtering."""
 
         params = []
-        where_clauses = ["p.is_active = TRUE"] # Start with a base condition
+        where_clauses = ["p.is_active = TRUE"]
 
         if start_date and end_date:
             where_clauses.append("p.start_date >= %s AND p.end_date <= %s")
@@ -397,7 +383,6 @@ class ManagerAnalytics(BaseAnalytics):
         return self.execute_query(query, params)
 
     def get_customer_traffic_analysis(self, period_type='day', start_date=None, end_date=None):
-        """Get customer traffic analysis with flexible time periods"""
 
         if start_date is None or end_date is None:
             end_date = datetime.now()
@@ -407,7 +392,7 @@ class ManagerAnalytics(BaseAnalytics):
                 start_date = end_date - timedelta(days=7)
             elif period_type == 'week':
                 start_date = end_date - timedelta(weeks=4)
-            else: # month
+            else:
                 start_date = end_date - timedelta(weeks=8)
 
         query = """
@@ -452,16 +437,11 @@ class ManagerAnalytics(BaseAnalytics):
             analysis['period_label'] = analysis['transaction_date'].dt.strftime('Week of %b %d')
 
         return analysis.fillna(0)
-        
-    
-            
 
 
 class SalesManagerAnalytics(BaseAnalytics):
-    """Analytics functionality for Sales Managers"""
-    
+
     def get_real_time_sales_dashboard(self):
-        """Get real-time sales data for today with timestamp"""
         query = """
         SELECT 
             COUNT(*) as todays_transactions,
@@ -474,7 +454,6 @@ class SalesManagerAnalytics(BaseAnalytics):
         return self.execute_query(query)
 
     def get_hourly_sales_data(self):
-        """Get hourly sales revenue for the current day."""
         query = """
         SELECT 
             EXTRACT(HOUR FROM transaction_date) as hour,
@@ -487,9 +466,8 @@ class SalesManagerAnalytics(BaseAnalytics):
         ORDER BY hour;
         """
         return self.execute_query(query)
-    
+
     def get_todays_top_products(self, limit=5):
-        """Get today's top selling products by quantity"""
         query = """
         SELECT 
             p.name as product_name,
@@ -504,9 +482,8 @@ class SalesManagerAnalytics(BaseAnalytics):
         LIMIT %s
         """
         return self.execute_query(query, [limit])
-    
+
     def get_recent_transactions(self, limit=10):
-        """Get recent transactions for today with formatted time and summary"""
         query = """
         SELECT 
             TO_CHAR(st.transaction_date, 'HH24:MI') as time,
@@ -520,9 +497,8 @@ class SalesManagerAnalytics(BaseAnalytics):
         LIMIT %s
         """
         return self.execute_query(query, [limit])
-    
+
     def get_transaction_behavior(self, days=30):
-        """Analyze transaction behaviors without customer data"""
         query = """
         SELECT 
             'All Transactions' as transaction_type,
@@ -542,12 +518,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY 1
         ORDER BY total_spent DESC
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_popular_products_for_promotion(self, limit=10, days=30):
-        """Identify popular products for promotion campaigns"""
         query = """
         SELECT 
             p.name as product_name,
@@ -565,12 +540,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         ORDER BY total_sold DESC
         LIMIT %s
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date, limit])
-    
+
     def get_promotion_comparison(self, promotion_id):
-        """Compare sales before and after promotions"""
         query = """
         WITH promotion_period AS (
             SELECT start_date, end_date 
@@ -603,11 +577,10 @@ class SalesManagerAnalytics(BaseAnalytics):
         )
         SELECT * FROM before_promotion, during_promotion
         """
-        
+
         return self.execute_query(query, [promotion_id, promotion_id, promotion_id])
-    
+
     def get_seasonal_sales_trends(self):
-        """Get seasonal sales trends"""
         query = """
         SELECT 
             EXTRACT(MONTH FROM transaction_date) as month,
@@ -620,12 +593,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY EXTRACT(YEAR FROM transaction_date), EXTRACT(MONTH FROM transaction_date)
         ORDER BY year, month
         """
-        
+
         start_date = datetime.now() - timedelta(days=365)
         return self.execute_query(query, [start_date])
-    
+
     def get_sales_trend_analysis(self, days=30, metric="revenue"):
-        """Get sales trend analysis for the last N days"""
         query = """
         SELECT 
             DATE(transaction_date) as date,
@@ -637,12 +609,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(transaction_date)
         ORDER BY date
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_sales_trend_analysis_custom(self, start_date, end_date, metric="revenue"):
-        """Get sales trend analysis for a custom date range"""
         query = """
         SELECT 
             DATE(transaction_date) as date,
@@ -654,11 +625,10 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(transaction_date)
         ORDER BY date
         """
-        
+
         return self.execute_query(query, [start_date, end_date])
-    
+
     def get_frequently_bought_together(self, days=30):
-        """Get frequently bought together products using market basket analysis"""
         query = """
         WITH transaction_products AS (
             SELECT 
@@ -694,12 +664,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         ORDER BY frequency DESC, confidence DESC
         LIMIT 20
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_frequently_bought_together_custom(self, start_date, end_date):
-        """Get frequently bought together products for custom date range"""
         query = """
         WITH transaction_products AS (
             SELECT 
@@ -735,11 +704,10 @@ class SalesManagerAnalytics(BaseAnalytics):
         ORDER BY frequency DESC, confidence DESC
         LIMIT 20
         """
-        
+
         return self.execute_query(query, [start_date, end_date])
-    
+
     def get_category_performance(self, days=30):
-        """Get category performance analytics"""
         query = """
         SELECT 
             c.name as category,
@@ -756,12 +724,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY c.id, c.name
         ORDER BY total_sales DESC
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_category_performance_custom(self, start_date, end_date):
-        """Get category performance analytics for custom date range"""
         query = """
         SELECT 
             c.name as category,
@@ -778,11 +745,10 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY c.id, c.name
         ORDER BY total_sales DESC
         """
-        
+
         return self.execute_query(query, [start_date, end_date])
-    
+
     def get_avg_items_per_transaction(self, days=30):
-        """Get average items per transaction over time"""
         query = """
         SELECT 
             DATE(st.transaction_date) as date,
@@ -795,12 +761,11 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(st.transaction_date)
         ORDER BY date
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
+
     def get_avg_items_per_transaction_custom(self, start_date, end_date):
-        """Get average items per transaction for custom date range"""
         query = """
         SELECT 
             DATE(st.transaction_date) as date,
@@ -813,11 +778,10 @@ class SalesManagerAnalytics(BaseAnalytics):
         GROUP BY DATE(st.transaction_date)
         ORDER BY date
         """
-        
+
         return self.execute_query(query, [start_date, end_date])
 
     def get_promotional_impact_data(self, days=30, start_date=None, end_date=None):
-        """Get promotional campaign impact analysis from database"""
         try:
             if start_date and end_date:
                 date_filter = "p.start_date >= %s AND p.end_date <= %s"
@@ -825,7 +789,7 @@ class SalesManagerAnalytics(BaseAnalytics):
             else:
                 date_filter = "p.start_date >= %s"
                 params = [datetime.now() - timedelta(days=days)]
-            
+
             query = f"""
             WITH promotion_sales AS (
                 SELECT 
@@ -864,28 +828,26 @@ class SalesManagerAnalytics(BaseAnalytics):
             FROM promotion_sales
             ORDER BY total_revenue DESC
             """
-            
+
             df = self.execute_query(query, params)
-            
+
             if df.empty:
-                # Return sample data if no promotions in database
                 return self._get_sample_promotional_data(days)
-            
+
             return df
-            
+
         except Exception as e:
             print(f"Error getting promotional impact data: {e}")
             return self._get_sample_promotional_data(days)
-    
+
     def _get_sample_promotional_data(self, days):
-        """Generate sample promotional data when database has no promotion data"""
         promotions = ['Summer Sale', 'Black Friday', 'New Year Deal', 'Spring Promo', 'Holiday Special']
         data = []
         for i, promo in enumerate(promotions):
             data.append({
                 'campaign_name': promo,
-                'start_date': (datetime.now() - timedelta(days=days-i*5)).strftime('%Y-%m-%d'),
-                'end_date': (datetime.now() - timedelta(days=days-i*5-3)).strftime('%Y-%m-%d'),
+                'start_date': (datetime.now() - timedelta(days=days - i * 5)).strftime('%Y-%m-%d'),
+                'end_date': (datetime.now() - timedelta(days=days - i * 5 - 3)).strftime('%Y-%m-%d'),
                 'discount_percentage': np.random.uniform(10, 30),
                 'total_revenue': np.random.uniform(5000, 15000),
                 'units_sold': np.random.randint(100, 500),
@@ -897,7 +859,6 @@ class SalesManagerAnalytics(BaseAnalytics):
         return pd.DataFrame(data)
 
     def get_seasonal_trends_data(self, days=365, start_date=None, end_date=None):
-        """Get seasonal sales trends analysis from database"""
         try:
             if start_date and end_date:
                 date_filter = "st.transaction_date >= %s AND st.transaction_date <= %s"
@@ -905,7 +866,7 @@ class SalesManagerAnalytics(BaseAnalytics):
             else:
                 date_filter = "st.transaction_date >= %s"
                 params = [datetime.now() - timedelta(days=days)]
-            
+
             query = f"""
             WITH seasonal_data AS (
                 SELECT 
@@ -981,21 +942,19 @@ class SalesManagerAnalytics(BaseAnalytics):
                     WHEN 'Fall' THEN 4 
                 END
             """
-            
+
             df = self.execute_query(query, params)
-            
+
             if df.empty:
-                # Return sample data if no seasonal data available
                 return self._get_sample_seasonal_data()
-            
+
             return df
-            
+
         except Exception as e:
             print(f"Error getting seasonal trends data: {e}")
             return self._get_sample_seasonal_data()
-    
+
     def _get_sample_seasonal_data(self):
-        """Generate sample seasonal data when database has insufficient data"""
         seasons = ['Winter', 'Spring', 'Summer', 'Fall']
         data = []
         for season in seasons:
@@ -1009,7 +968,6 @@ class SalesManagerAnalytics(BaseAnalytics):
         return pd.DataFrame(data)
 
     def get_sales_comparison_data(self, days=30, comparison_type="vs_last_period", start_date=None, end_date=None):
-        """Get sales comparison data for different periods"""
         try:
             if start_date and end_date:
                 current_start = start_date
@@ -1017,20 +975,19 @@ class SalesManagerAnalytics(BaseAnalytics):
                 period_days = (end_date - start_date).days + 1
             else:
                 current_end = datetime.now().date()
-                current_start = current_end - timedelta(days=days-1)
+                current_start = current_end - timedelta(days=days - 1)
                 period_days = days
-            
-            # Calculate comparison periods
+
             if comparison_type == "vs_last_period":
                 prev_end = current_start - timedelta(days=1)
-                prev_start = prev_end - timedelta(days=period_days-1)
+                prev_start = prev_end - timedelta(days=period_days - 1)
             elif comparison_type == "vs_last_year":
                 prev_start = current_start - timedelta(days=365)
                 prev_end = current_end - timedelta(days=365)
-            else:  # vs_last_month
+            else:
                 prev_start = current_start - timedelta(days=30)
                 prev_end = current_end - timedelta(days=30)
-            
+
             query = """
             WITH current_period AS (
                 SELECT 
@@ -1069,33 +1026,31 @@ class SalesManagerAnalytics(BaseAnalytics):
             FROM combined_data
             ORDER BY period DESC
             """
-            
+
             comparison_labels = {
                 "vs_last_period": "Previous Period",
-                "vs_last_year": "Same Period Last Year", 
+                "vs_last_year": "Same Period Last Year",
                 "vs_last_month": "Previous Month"
             }
-            
+
             comparison_label = comparison_labels.get(comparison_type, "Previous Period")
-            
+
             df = self.execute_query(query, [
-                current_start, current_end, 
+                current_start, current_end,
                 comparison_label,
                 prev_start, prev_end
             ])
-            
+
             if df.empty:
-                # Return sample data if no sales data available
                 return self._get_sample_comparison_data()
-            
+
             return df
-            
+
         except Exception as e:
             print(f"Error getting sales comparison data: {e}")
             return self._get_sample_comparison_data()
-    
+
     def _get_sample_comparison_data(self):
-        """Generate sample comparison data when database has insufficient data"""
         periods = ['Current Period', 'Previous Period', 'Same Period Last Year']
         data = []
         for period in periods:
@@ -1107,29 +1062,27 @@ class SalesManagerAnalytics(BaseAnalytics):
                 'growth_percentage': np.random.uniform(-10, 25)
             })
         return pd.DataFrame(data)
-    
+
     def get_popular_products_by_category(self, category_name=None, limit=10, days=30, metric="total_sold"):
-        """Get popular products filtered by category with flexible sorting metrics"""
         try:
             category_filter = ""
             params = [datetime.now() - timedelta(days=days)]
-            
+
             if category_name and category_name != "All Categories":
                 category_filter = "AND c.name = %s"
                 params.append(category_name)
-            
+
             params.append(limit)
-            
-            # Map metric to appropriate column for sorting
+
             sort_column_map = {
                 "total_sold": "total_sold",
-                "total_revenue": "total_revenue", 
+                "total_revenue": "total_revenue",
                 "avg_price": "avg_selling_price",
                 "growth_rate": "growth_rate"
             }
-            
+
             sort_column = sort_column_map.get(metric, "total_sold")
-            
+
             query = f"""
             WITH product_sales AS (
                 SELECT 
@@ -1139,10 +1092,9 @@ class SalesManagerAnalytics(BaseAnalytics):
                     SUM(sti.total_price) as total_revenue,
                     COUNT(DISTINCT st.id) as total_transactions,
                     AVG(sti.unit_price) as avg_selling_price,
-                    -- Simple growth rate calculation (comparing recent vs earlier sales)
                     CASE 
                         WHEN COUNT(DISTINCT st.id) >= 2 THEN 
-                            ROUND((RANDOM() * 50 - 10)::numeric, 2)  -- Cast to numeric for ROUND
+                            ROUND((RANDOM() * 50 - 10)::numeric, 2)
                         ELSE 0
                     END as growth_rate
                 FROM sales_transaction_items sti
@@ -1166,34 +1118,33 @@ class SalesManagerAnalytics(BaseAnalytics):
             ORDER BY {sort_column} DESC
             LIMIT %s
             """
-            
+
             return self.execute_query(query, params)
-            
+
         except Exception as e:
             print(f"Error getting popular products by category: {e}")
             return pd.DataFrame()
-    
-    def get_top_selling_products_custom_date(self, start_date, end_date, category_name=None, limit=10, metric="total_sold"):
-        """Get top selling products for a custom date range"""
+
+    def get_top_selling_products_custom_date(self, start_date, end_date, category_name=None, limit=10,
+                                             metric="total_sold"):
         try:
             category_filter = ""
             params = [start_date, end_date]
-            
+
             if category_name and category_name != "All Categories":
                 category_filter = "AND c.name = %s"
                 params.append(category_name)
-            
+
             params.append(limit)
-            
-            # Map metric to appropriate column for sorting
+
             sort_column_map = {
                 "total_sold": "total_sold",
-                "total_revenue": "total_revenue", 
+                "total_revenue": "total_revenue",
                 "avg_price": "avg_selling_price"
             }
-            
+
             sort_column = sort_column_map.get(metric, "total_sold")
-            
+
             query = f"""
             SELECT 
                 p.name as product_name,
@@ -1213,30 +1164,25 @@ class SalesManagerAnalytics(BaseAnalytics):
             ORDER BY {sort_column} DESC
             LIMIT %s
             """
-            
+
             return self.execute_query(query, params)
-        
-        
-            
+
+
+
         except Exception as e:
             print(f"Error getting top selling products for custom date: {e}")
             return pd.DataFrame()
-        
+
     def get_promotions_for_dropdown(self):
-        """Fetches active promotions (id, name) to populate a dropdown menu."""
         query = "SELECT id, name FROM promotions WHERE is_active = TRUE ORDER BY start_date DESC;"
         return self.execute_query(query)
 
     def get_promotion_dates_by_id(self, promotion_id):
-        """Fetches the start and end dates for a specific promotion ID."""
         query = "SELECT start_date, end_date FROM promotions WHERE id = %s;"
         return self.execute_query(query, [promotion_id])
-        
-    def get_promotional_vs_non_promotional_sales(self, promo_start_date, promo_end_date, non_promo_start_date, non_promo_end_date):
-        """
-        Compares sales metrics between a specific promotional and non-promotional period.
-        Fetches data for both periods and calculates the percentage change.
-        """
+
+    def get_promotional_vs_non_promotional_sales(self, promo_start_date, promo_end_date, non_promo_start_date,
+                                                 non_promo_end_date):
         query = """
         WITH promo_sales AS (
             SELECT 
@@ -1268,7 +1214,6 @@ class SalesManagerAnalytics(BaseAnalytics):
         params = [promo_start_date, promo_end_date, non_promo_start_date, non_promo_end_date]
         df = self.execute_query(query, params)
 
-        # --- Calculate and add a summary row with percentage changes ---
         if not df.empty and len(df) == 2:
             promo_row = df[df['period_type'] == 'Promotional'].iloc[0]
             non_promo_row = df[df['period_type'] == 'Non-Promotional'].iloc[0]
@@ -1276,29 +1221,26 @@ class SalesManagerAnalytics(BaseAnalytics):
             def get_change(current, previous):
                 if previous > 0:
                     return ((current - previous) / previous) * 100
-                return 0  # Avoid division by zero
+                return 0
 
             change_row = {
                 'period_type': 'Change (%)',
                 'total_sales': get_change(promo_row['total_sales'], non_promo_row['total_sales']),
                 'transaction_count': get_change(promo_row['transaction_count'], non_promo_row['transaction_count']),
-                'avg_transaction_value': get_change(promo_row['avg_transaction_value'], non_promo_row['avg_transaction_value']),
+                'avg_transaction_value': get_change(promo_row['avg_transaction_value'],
+                                                    non_promo_row['avg_transaction_value']),
                 'items_sold': get_change(promo_row['items_sold'], non_promo_row['items_sold'])
             }
-            
+
             change_df = pd.DataFrame([change_row])
             df = pd.concat([df, change_df], ignore_index=True)
 
         return df
 
 
-
-
 class RestockerAnalytics(BaseAnalytics):
-    """Analytics functionality for Restockers"""
-    
+
     def get_low_stock_products(self):
-        """Get products with low stock levels"""
         query = """
         SELECT 
             p.name as product_name,
@@ -1329,11 +1271,10 @@ class RestockerAnalytics(BaseAnalytics):
             END,
             p.current_stock ASC
         """
-        
+
         return self.execute_query(query)
-    
+
     def get_predicted_high_demand_products(self, days=30):
-        """Get products predicted to have high demand based on recent trends"""
         query = """
         SELECT 
             p.name as product_name,
@@ -1381,13 +1322,12 @@ class RestockerAnalytics(BaseAnalytics):
             END,
             recent_sales.avg_daily_sales DESC
         """
-        
+
         week_ago = datetime.now() - timedelta(days=7)
         month_ago = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [week_ago, month_ago, month_ago])
-    
+
     def get_inventory_movement_trends(self, days=30):
-        """Get inventory movement trends by category"""
         query = """
         SELECT 
             c.name as category,
@@ -1403,24 +1343,16 @@ class RestockerAnalytics(BaseAnalytics):
         GROUP BY c.id, c.name
         ORDER BY total_outbound DESC
         """
-        
+
         start_date = datetime.now() - timedelta(days=days)
         return self.execute_query(query, [start_date])
-    
-    def get_advanced_sales_trends(self, period_type='daily', start_date=None, end_date=None, product_id=None, category_id=None):
-        """Get comprehensive sales trend analysis with flexible periods and filtering
-        
-        Args:
-            period_type: 'daily', 'weekly', 'monthly', or 'quarterly'
-            start_date: Custom start date (optional)
-            end_date: Custom end date (optional)
-            product_id: Filter by specific product (optional)
-            category_id: Filter by specific category (optional)
-        """
-        
+
+    def get_advanced_sales_trends(self, period_type='daily', start_date=None, end_date=None, product_id=None,
+                                  category_id=None):
+
         if not start_date or not end_date:
             today = datetime.now()
-            
+
             if period_type == 'daily':
                 start_date = (today - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -1429,23 +1361,23 @@ class RestockerAnalytics(BaseAnalytics):
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'monthly':
                 start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                start_date = start_date - timedelta(days=365)  
+                start_date = start_date - timedelta(days=365)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
             elif period_type == 'quarterly':
                 start_date = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                start_date = start_date - timedelta(days=365) 
+                start_date = start_date - timedelta(days=365)
                 end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-        
+
         product_filter = ""
         params = [start_date, end_date]
-        
+
         if product_id:
             product_filter += " AND sti.product_id = %s"
             params.append(product_id)
         elif category_id:
             product_filter += " AND p.category_id = %s"
             params.append(category_id)
-        
+
         if period_type == 'daily':
             query = f"""
             WITH date_series AS (
@@ -1459,7 +1391,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    
+
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1478,7 +1410,7 @@ class RestockerAnalytics(BaseAnalytics):
             LEFT JOIN daily_data dd ON ds.date_val = dd.transaction_date
             ORDER BY ds.date_val
             """
-            
+
         elif period_type == 'weekly':
             query = f"""
             WITH week_series AS (
@@ -1492,7 +1424,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    
+
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1511,7 +1443,7 @@ class RestockerAnalytics(BaseAnalytics):
             LEFT JOIN weekly_data wd ON ws.week_start = wd.week_start
             ORDER BY ws.week_start
             """
-            
+
         elif period_type == 'monthly':
             query = f"""
             WITH month_series AS (
@@ -1525,7 +1457,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    
+
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1544,7 +1476,7 @@ class RestockerAnalytics(BaseAnalytics):
             LEFT JOIN monthly_data md ON ms.month_start = md.month_start
             ORDER BY ms.month_start
             """
-            
+
         elif period_type == 'quarterly':
             query = f"""
             WITH quarter_series AS (
@@ -1558,7 +1490,7 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.quantity) as total_quantity,
                     SUM(sti.total_price) as total_revenue,
                     AVG(st.total_amount) as avg_transaction_value,
-                    
+
                 FROM sales_transactions st
                 JOIN sales_transaction_items sti ON st.id = sti.transaction_id
                 JOIN products p ON sti.product_id = p.id
@@ -1577,26 +1509,25 @@ class RestockerAnalytics(BaseAnalytics):
             LEFT JOIN quarterly_data qd ON qs.quarter_start = qd.quarter_start
             ORDER BY qs.quarter_start
             """
-        
+
         else:
             raise ValueError("period_type must be 'daily', 'weekly', 'monthly', or 'quarterly'")
-        
+
         return self.execute_query(query, params)
-    
+
     def get_sales_summary_metrics(self, start_date=None, end_date=None):
-        """Get comprehensive sales summary metrics for a given period"""
         if not start_date or not end_date:
             today = datetime.now()
             start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-        
+
         query = """
         WITH sales_metrics AS (
             SELECT 
                 COUNT(DISTINCT st.id) as total_transactions,
                 SUM(sti.total_price) as total_revenue,
                 AVG(st.total_amount) as avg_transaction_value,
-                
+
                 SUM(sti.quantity) as total_items_sold,
                 COUNT(DISTINCT sti.product_id) as unique_products_sold
             FROM sales_transactions st
@@ -1649,24 +1580,23 @@ class RestockerAnalytics(BaseAnalytics):
         CROSS JOIN daily_averages da
         CROSS JOIN growth_comparison gc
         """
-        
+
         period_length = end_date - start_date
         previous_start = start_date - period_length
-        
+
         return self.execute_query(query, [
-            start_date, end_date,  
-            start_date, end_date,  
-            start_date, end_date, 
-            previous_start, start_date  
+            start_date, end_date,
+            start_date, end_date,
+            start_date, end_date,
+            previous_start, start_date
         ])
-    
+
     def get_category_sales_trends(self, period_type='daily', start_date=None, end_date=None, limit=5):
-        """Get sales trends by product category"""
         if not start_date or not end_date:
             today = datetime.now()
             start_date = (today - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-        
+
         if period_type == 'daily':
             query = """
             WITH date_series AS (
@@ -1704,7 +1634,7 @@ class RestockerAnalytics(BaseAnalytics):
             ORDER BY tc.category, ds.date_val
             """
             return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
-        
+
         elif period_type == 'weekly':
             query = """
             WITH week_series AS (
@@ -1743,7 +1673,7 @@ class RestockerAnalytics(BaseAnalytics):
             ORDER BY tc.category, ws.week_start
             """
             return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
-        
+
         elif period_type == 'monthly':
             query = """
             WITH month_series AS (
@@ -1782,7 +1712,7 @@ class RestockerAnalytics(BaseAnalytics):
             ORDER BY tc.category, ms.month_start
             """
             return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
-        
+
         elif period_type == 'quarterly':
             query = """
             WITH quarter_series AS (
@@ -1821,12 +1751,11 @@ class RestockerAnalytics(BaseAnalytics):
             ORDER BY tc.category, qs.quarter_start
             """
             return self.execute_query(query, [start_date, end_date, start_date, end_date, limit])
-        
+
         else:
             raise ValueError("period_type must be 'daily', 'weekly', 'monthly', or 'quarterly'")
-    
+
     def get_inventory_value_analysis(self):
-        """Get inventory value analysis by category"""
         query = """
         SELECT 
             c.name as category,
@@ -1846,11 +1775,10 @@ class RestockerAnalytics(BaseAnalytics):
         GROUP BY c.id, c.name
         ORDER BY total_inventory_value DESC
         """
-        
+
         return self.execute_query(query)
-    
+
     def get_supplier_performance_analysis(self):
-        """Get supplier performance analysis for restocking decisions"""
         query = """
         WITH supplier_movements AS (
             SELECT 
@@ -1904,12 +1832,11 @@ class RestockerAnalytics(BaseAnalytics):
             END,
             sm.total_delivered DESC
         """
-        
+
         thirty_days_ago = datetime.now() - timedelta(days=30)
         return self.execute_query(query, [thirty_days_ago])
-    
+
     def get_critical_inventory_report(self):
-        """Get comprehensive critical inventory report"""
         query = """
         WITH product_sales AS (
             SELECT 
@@ -1981,12 +1908,11 @@ class RestockerAnalytics(BaseAnalytics):
             ps.avg_daily_sales DESC,
             p.current_stock ASC
         """
-        
+
         thirty_days_ago = datetime.now() - timedelta(days=30)
         return self.execute_query(query, [thirty_days_ago, thirty_days_ago])
-    
+
     def get_restock_recommendations(self, days_ahead=30):
-        """Get intelligent restock recommendations based on sales trends"""
         query = """
         WITH sales_trends AS (
             SELECT 
@@ -2047,7 +1973,7 @@ class RestockerAnalytics(BaseAnalytics):
         JOIN products p ON df.id = p.id
         JOIN categories c ON p.category_id = c.id
         LEFT JOIN suppliers s ON p.supplier_id = s.id
-        WHERE df.current_stock <= df.projected_daily_demand * %s  -- Only show items that need restocking soon
+        WHERE df.current_stock <= df.projected_daily_demand * %s
         ORDER BY 
             CASE 
                 WHEN df.current_stock <= df.projected_daily_demand * 7 THEN 1
@@ -2057,37 +1983,35 @@ class RestockerAnalytics(BaseAnalytics):
             END,
             df.projected_daily_demand DESC
         """
-        
-        recent_period_start = datetime.now() - timedelta(days=14)  
-        previous_period_start = datetime.now() - timedelta(days=28)  
+
+        recent_period_start = datetime.now() - timedelta(days=14)
+        previous_period_start = datetime.now() - timedelta(days=28)
         previous_period_end = datetime.now() - timedelta(days=14)
-        analysis_period_start = datetime.now() - timedelta(days=28)  
-        
+        analysis_period_start = datetime.now() - timedelta(days=28)
+
         return self.execute_query(query, [
-            recent_period_start, previous_period_start, previous_period_end, 
+            recent_period_start, previous_period_start, previous_period_end,
             analysis_period_start, days_ahead, days_ahead, days_ahead
         ])
-    
+
     def get_popular_products_by_category(self, category_name=None, limit=10, days=30, metric="total_sold"):
-        """Get popular products filtered by category with flexible sorting metrics"""
         try:
             category_filter = ""
             params = [datetime.now() - timedelta(days=days), limit]
-            
+
             if category_name and category_name != "All Categories":
                 category_filter = "AND c.name = %s"
                 params = [datetime.now() - timedelta(days=days), category_name, limit]
-            
-            # Map metric to appropriate column for sorting
+
             sort_column_map = {
                 "total_sold": "total_sold",
-                "total_revenue": "total_revenue", 
+                "total_revenue": "total_revenue",
                 "avg_price": "avg_selling_price",
                 "growth_rate": "growth_rate"
             }
-            
+
             sort_column = sort_column_map.get(metric, "total_sold")
-            
+
             query = f"""
             WITH product_sales AS (
                 SELECT 
@@ -2097,7 +2021,6 @@ class RestockerAnalytics(BaseAnalytics):
                     SUM(sti.total_price) as total_revenue,
                     COUNT(DISTINCT st.id) as total_transactions,
                     AVG(sti.unit_price) as avg_selling_price,
-                    -- Calculate growth rate by comparing recent vs previous period
                     CASE 
                         WHEN AVG(CASE WHEN st.transaction_date >= %s + INTERVAL '%s days' / 2 THEN sti.quantity ELSE NULL END) > 0 
                          AND AVG(CASE WHEN st.transaction_date < %s + INTERVAL '%s days' / 2 THEN sti.quantity ELSE NULL END) > 0
@@ -2128,66 +2051,65 @@ class RestockerAnalytics(BaseAnalytics):
             ORDER BY {sort_column} DESC
             LIMIT %s
             """
-            
-            # Construct parameters based on whether category filter is used
+
             if category_filter:
                 query_params = [
-                    datetime.now() - timedelta(days=days),  # For growth calculation 1
-                    days,  # For growth calculation 1
-                    datetime.now() - timedelta(days=days),  # For growth calculation 2
-                    days,  # For growth calculation 2
-                    datetime.now() - timedelta(days=days),  # For growth calculation 3
-                    days,  # For growth calculation 3
-                    datetime.now() - timedelta(days=days),  # For growth calculation 4
-                    days,  # For growth calculation 4
-                    datetime.now() - timedelta(days=days),  # For growth calculation 5
-                    days,  # For growth calculation 5
-                    datetime.now() - timedelta(days=days),  # Main filter
-                    category_name,  # Category filter
-                    limit  # Limit
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    category_name,
+                    limit
                 ]
             else:
                 query_params = [
-                    datetime.now() - timedelta(days=days),  # For growth calculation 1
-                    days,  # For growth calculation 1
-                    datetime.now() - timedelta(days=days),  # For growth calculation 2
-                    days,  # For growth calculation 2
-                    datetime.now() - timedelta(days=days),  # For growth calculation 3
-                    days,  # For growth calculation 3
-                    datetime.now() - timedelta(days=days),  # For growth calculation 4
-                    days,  # For growth calculation 4
-                    datetime.now() - timedelta(days=days),  # For growth calculation 5
-                    days,  # For growth calculation 5
-                    datetime.now() - timedelta(days=days),  # Main filter
-                    limit  # Limit
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    days,
+                    datetime.now() - timedelta(days=days),
+                    limit
                 ]
-            
+
             return self.execute_query(query, query_params)
-            
+
         except Exception as e:
             print(f"Error getting popular products by category: {e}")
             return pd.DataFrame()
 
-    def get_top_selling_products_custom_date(self, start_date, end_date, category_name=None, limit=10, metric="total_sold"):
-        """Get top selling products for a custom date range with category filtering"""
+    def get_top_selling_products_custom_date(self, start_date, end_date, category_name=None, limit=10,
+                                             metric="total_sold"):
         try:
             category_filter = ""
             params = [start_date, end_date]
-            
+
             if category_name and category_name != "All Categories":
                 category_filter = "AND c.name = %s"
                 params.append(category_name)
-            
+
             params.append(limit)
-            
+
             sort_column_map = {
                 "total_sold": "total_sold",
-                "total_revenue": "total_revenue", 
+                "total_revenue": "total_revenue",
                 "avg_price": "avg_selling_price"
             }
-            
+
             sort_column = sort_column_map.get(metric, "total_sold")
-            
+
             query = f"""
             SELECT 
                 p.name as product_name,
@@ -2207,9 +2129,9 @@ class RestockerAnalytics(BaseAnalytics):
             ORDER BY {sort_column} DESC
             LIMIT %s
             """
-            
+
             return self.execute_query(query, params)
-            
+
         except Exception as e:
             print(f"Error getting top selling products for custom date: {e}")
             return pd.DataFrame()
