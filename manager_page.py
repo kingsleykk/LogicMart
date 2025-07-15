@@ -491,7 +491,7 @@ class TopSelling(DataDisplayFrame):
                 fg=self.theme_colors['fg']).pack()
         
         limit_combo = ttk.Combobox(limit_frame, textvariable=self.limit_var, 
-                                  values=["5", "10", "15", "20", "25"], width=8)
+                                  values=["5", "10"], width=8)
         limit_combo.pack(pady=2)
         limit_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
