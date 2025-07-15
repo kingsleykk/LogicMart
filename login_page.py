@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 from database_config import user_manager
+from pathlib import Path
 
 print(os.getcwd())
 class LoginPage(tk.Frame):
@@ -71,7 +72,10 @@ class LoginPage(tk.Frame):
         left_frame.grid(row=0, column=0, sticky="nsew")
 
         try:
-            png = Image.open("analytics.png")
+            BASE_DIR = Path(__file__).resolve().parent
+            IMAGE_PATH = BASE_DIR / "analytics.png"
+            
+            png = Image.open(IMAGE_PATH)
             resized = png.resize((400, 400), Image.Resampling.LANCZOS)
             tk_img = ImageTk.PhotoImage(resized)
             label = tk.Label(left_frame, image=tk_img, bg="#d9eaf7")
