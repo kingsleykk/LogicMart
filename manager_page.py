@@ -282,11 +282,14 @@ class SalesTrend(DataDisplayFrame):
                 end_date = None
             
             metric = self.metric_var.get()
-            
-            if start_date and end_date:
-                df = self.analytics.get_sales_trend_analysis_custom(start_date, end_date, metric)
+                
+            if self.use_custom_dates.get():
+                start_date = self.start_date_entry.get_date()
+                end_date = self.end_date_entry.get_date()
+                df = self.analytics.get_sales_forecast_data(start_date=start_date, end_date=end_date)
             else:
-                df = self.analytics.get_sales_trend_analysis(days, metric)
+                days = int(self.period_var.get())
+                df = self.analytics.get_sales_forecast_data(days=days)
             
             if not df.empty:
                 df['date'] = pd.to_datetime(df['date'])
@@ -945,37 +948,21 @@ class SalesForecast(DataDisplayFrame):
                 if isinstance(widget, tk.Frame) and widget != self.winfo_children()[0] and widget != self.winfo_children()[1]:
                     widget.destroy()
             
+            forecast_type = self.forecast_type_var.get()
+            forecast_days = int(self.forecast_days_var.get())
+
             if self.use_custom_dates.get():
                 start_date = self.start_date_entry.get_date()
                 end_date = self.end_date_entry.get_date()
-                days = (end_date - start_date).days + 1
+                df = self.analytics.get_sales_forecast_data(start_date=start_date, end_date=end_date)
             else:
                 days = int(self.period_var.get())
-                start_date = None
-                end_date = None
-            
-            forecast_type = self.forecast_type_var.get()
-            forecast_days = int(self.forecast_days_var.get())
-            
-            if start_date and end_date:
-                df = self.analytics.get_sales_forecast_data(days)
-            else:
-                df = self.analytics.get_sales_forecast_data(days)
-            
+                start_date = None 
+                df = self.analytics.get_sales_forecast_data(days=days)
+
             if not df.empty and len(df) >= 7:
                 df['date'] = pd.to_datetime(df['date'])
                 df = df.sort_values('date')
-                
-                if forecast_type == "moving_average":
-                    window = min(7, len(df))
-                    df['forecast'] = df['daily_revenue'].rolling(window=window).mean()
-                elif forecast_type == "linear_trend":
-                    df['day_num'] = range(len(df))
-                    slope = (df['daily_revenue'].iloc[-1] - df['daily_revenue'].iloc[0]) / len(df)
-                    df['forecast'] = df['daily_revenue'].iloc[0] + slope * df['day_num']
-                elif forecast_type == "exponential":
-                    alpha = 0.3
-                    df['forecast'] = df['daily_revenue'].ewm(alpha=alpha).mean()
                 
                 main_frame = tk.Frame(self, bg=self.theme_colors['bg'])
                 main_frame.pack(fill="both", expand=True)
@@ -983,9 +970,10 @@ class SalesForecast(DataDisplayFrame):
                 info_frame = tk.Frame(main_frame, bg=self.theme_colors['secondary_bg'], relief="solid", bd=1)
                 info_frame.pack(fill="x", padx=10, pady=5)
                 
-                if self.use_custom_dates.get():
+                if self.use_custom_dates.get() and start_date:
                     info_text = f"📊 Sales Forecast: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
                 else:
+                    days = int(self.period_var.get())
                     info_text = f"📊 Sales Forecast: {days} days historical data"
                 
                 info_text += f" | Method: {forecast_type.replace('_', ' ').title()} | Forecast: {forecast_days} days"
@@ -1018,7 +1006,7 @@ class SalesForecast(DataDisplayFrame):
                 
                 ax.plot(df['date'], df['daily_revenue'], label='Actual Revenue', marker='o', linewidth=2, alpha=0.8, color='#3498db')
                 ax.plot(df['date'], df['forecast'], label=f'{forecast_type.replace("_", " ").title()} Forecast', 
-                       linestyle='--', linewidth=2, alpha=0.8, color='#27ae60')
+                    linestyle='--', linewidth=2, alpha=0.8, color='#27ae60')
                 
                 last_date = df['date'].iloc[-1]
                 future_dates = [last_date + timedelta(days=i+1) for i in range(forecast_days)]
@@ -1057,7 +1045,7 @@ class SalesForecast(DataDisplayFrame):
                 future_values = [max(0, val + np.random.normal(0, variability)) for val in future_values]
                 
                 ax.plot(future_dates, future_values, label='Future Forecast', 
-                       linestyle=':', linewidth=3, alpha=0.7, color='#e74c3c', marker='s', markersize=4)
+                    linestyle=':', linewidth=3, alpha=0.7, color='#e74c3c', marker='s', markersize=4)
                 
                 ax.set_xlabel('Date')
                 ax.set_ylabel('Daily Revenue ($)')
@@ -1072,8 +1060,8 @@ class SalesForecast(DataDisplayFrame):
                 canvas.get_tk_widget().pack(fill="both", expand=True, padx=5, pady=5)
                 
                 stats_frame = tk.LabelFrame(main_frame, text="Forecast Statistics", 
-                                           font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'],
-                                           fg=self.theme_colors['fg'])
+                                        font=("Segoe UI", 12, "bold"), bg=self.theme_colors['bg'],
+                                        fg=self.theme_colors['fg'])
                 stats_frame.pack(fill="x", padx=10, pady=5)
                 
                 avg_revenue = df['daily_revenue'].mean()
@@ -1100,27 +1088,7 @@ class SalesForecast(DataDisplayFrame):
                         fg=self.theme_colors['fg']).pack(expand=True)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load forecast data: {str(e)}")
-    
-    def export_pdf(self):
-        try:
 
-            if self.use_custom_dates.get():
-                start_date = self.start_date_entry.get_date()
-                end_date = self.end_date_entry.get_date()
-                df = self.analytics.get_sales_forecast_data(start_date=start_date, end_date=end_date)
-            else:
-                days = int(self.period_var.get())
-                df = self.analytics.get_sales_forecast_data(days=days)
-                
-            if not df.empty:
-                report_gen = ManagerReportGenerator()
-                data_sections = {"Sales Forecast Data": df}
-                report_gen.generate_pdf_report("Sales Forecast Report", data_sections)
-            else:
-                messagebox.showwarning("No Data", "No forecast data available for export")
-        except Exception as e:
-            messagebox.showerror("Export Error", f"Failed to export PDF: {str(e)}")
-    
     def export_excel(self):
         try:
             if self.use_custom_dates.get():
