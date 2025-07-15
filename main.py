@@ -27,7 +27,6 @@ class App(tk.Tk):
         self.current_frame = None
         self.current_user = None  
         self.is_logged_in = False
-        
 
         self.configure(bg='#f0f0f0')
         

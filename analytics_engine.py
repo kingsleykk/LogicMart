@@ -170,6 +170,7 @@ class ManagerAnalytics(BaseAnalytics):
             c.name as category,
             SUM(sti.quantity) as total_quantity_sold,
             SUM(sti.total_price) as total_revenue,
+            COUNT(DISTINCT st.id) as sales_frequency,
             AVG(sti.unit_price) as avg_price
         FROM sales_transaction_items sti
         JOIN products p ON sti.product_id = p.id
@@ -266,42 +267,20 @@ class ManagerAnalytics(BaseAnalytics):
         return self.execute_query(query, params)
 
     def get_sales_forecast_data(self, days=30, start_date=None, end_date=None):
+        query = """
+        SELECT 
+            DATE(transaction_date) as date,
+            SUM(total_amount) as daily_revenue,
+            COUNT(*) as transaction_count,
+            AVG(total_amount) as avg_transaction_value
+        FROM sales_transactions 
+        WHERE transaction_date >= %s
+        GROUP BY DATE(transaction_date)
+        ORDER BY date
         """
-        Fetches sales data for forecasting.
-        Can handle a specific date range or a number of past days.
-        """
-        params = []
-        
-        if start_date and end_date:
-            query = """
-            SELECT 
-                DATE(transaction_date) as date,
-                SUM(total_amount) as daily_revenue,
-                COUNT(*) as transaction_count,
-                AVG(total_amount) as avg_transaction_value
-            FROM sales_transactions 
-            WHERE transaction_date >= %s AND transaction_date < %s
-            GROUP BY DATE(transaction_date)
-            ORDER BY date
-            """
-            end_date_inclusive = end_date + timedelta(days=1)
-            params.extend([start_date, end_date_inclusive])
-        else:
-            query = """
-            SELECT 
-                DATE(transaction_date) as date,
-                SUM(total_amount) as daily_revenue,
-                COUNT(*) as transaction_count,
-                AVG(total_amount) as avg_transaction_value
-            FROM sales_transactions 
-            WHERE transaction_date >= %s
-            GROUP BY DATE(transaction_date)
-            ORDER BY date
-            """
-            calculated_start_date = datetime.now() - timedelta(days=days)
-            params.append(calculated_start_date)
 
-        return self.execute_query(query, params)
+        start_date = datetime.now() - timedelta(days=days)
+        return self.execute_query(query, [start_date])
 
     def get_product_sales_trends(self, days=30, limit=10):
         query = """

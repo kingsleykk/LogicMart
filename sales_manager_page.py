@@ -1113,7 +1113,7 @@ class PopularProduct(SalesDataFrame):
                 fg=self.theme_colors['fg']).pack()
         
         limit_combo = ttk.Combobox(limit_frame, textvariable=self.limit_var, 
-                                  values=["5", "10", "15", "20"], width=8)
+                                  values=["5", "10"], width=8)
         limit_combo.pack(pady=2)
         limit_combo.bind('<<ComboboxSelected>>', self.on_filter_changed)
         
@@ -1995,9 +1995,13 @@ class SManagerPage(tk.Frame):
             self.separators.append(role_header)
             
             self.sales_trend_button.pack(fill="x", pady=(10, 0))
+            self.separator(self.sidebar)
             self.customer_buying_button.pack(fill="x", pady=(10, 0))
+            self.separator(self.sidebar)
             self.real_time_button.pack(fill="x", pady=(10, 0))
+            self.separator(self.sidebar)
             self.popular_product_button.pack(fill="x", pady=(10, 0))
+            self.separator(self.sidebar)
             self.promotion_sales_button.pack(fill="x", pady=(10, 0))
         self.sidebar_expand = not self.sidebar_expand
 
@@ -2051,3 +2055,4 @@ class SManagerPage(tk.Frame):
     def separator(self, parent):
         separator = tk.Frame(parent, height=1, bg="#bdc3c7")
         separator.pack(fill="x", padx=10, pady=(2, 5))
+        self.separators.append(separator)
